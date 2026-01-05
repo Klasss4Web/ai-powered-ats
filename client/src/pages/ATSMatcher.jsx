@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 // --- CORE COMPONENT: ATS Matcher ---
 
@@ -43,7 +43,6 @@ const ATSMatcher = () => {
       // CRITICAL CHANGE 2: Save the extracted text for the generation feature
       setResults(data);
       setOriginalResumeText(data.original_resume_text || "");
-      window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
     } catch (error) {
       console.error("Submission error:", error);
       setError(`Analysis Failed: ${error.message || "Check server status."}`);
@@ -110,6 +109,12 @@ const ATSMatcher = () => {
       console.error("Download error:", error);
     }
   };
+
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      window.scrollTo(0, document.documentElement.scrollHeight);
+    });
+  }, [JSON.stringify(results)]);
 
   // Helper component for the Score Display
   const ScoreBadge = ({ score }) => (
@@ -199,9 +204,13 @@ const ATSMatcher = () => {
             {/* Matched Skills */}
             <div style={styles.skillList}>
               <h3>👍 Skills Matched ({results.matched_skills.length})</h3>
-              <div style={styles.tagGroup}>
+              <div style={styles.tagGroup} className="drop-down-container">
                 {results.matched_skills.map((skill, index) => (
-                  <span key={index} style={styles.tagMatched}>
+                  <span
+                    key={index}
+                    className="drop-down-container__item"
+                    style={{ ...styles.tagMatched, "--i": index }}
+                  >
                     {skill}
                   </span>
                 ))}
