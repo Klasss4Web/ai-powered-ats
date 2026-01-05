@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import AnimatedLoader from "../components/loaders/animated-loader/AnimatedLoader";
 
 // --- CORE COMPONENT: ATS Matcher ---
 
@@ -166,13 +167,18 @@ const ATSMatcher = () => {
           />
         </div>
 
-        <button
-          type="submit"
-          disabled={loading || !resumeFile || !jobDescription.trim()}
-          style={styles.submitButton}
-        >
-          {loading ? "Analyzing with Gemini..." : "Get Match Score"}
-        </button>
+        {loading ? (
+          <AnimatedLoader text="Analyzing" />
+        ) : (
+          <button
+            type="submit"
+            disabled={loading || !resumeFile || !jobDescription.trim()}
+            style={styles.submitButton}
+          >
+            Get Match Score & Recommendations
+          </button>
+        )}
+
         {error && <p style={styles.error}>{error}</p>}
       </form>
 
