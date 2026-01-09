@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import AnimatedLoader from "../components/loaders/animated-loader/AnimatedLoader";
 
 // --- CORE COMPONENT: ATS Matcher ---
@@ -42,6 +42,9 @@ const ATSMatcher = () => {
       }
 
       // CRITICAL CHANGE 2: Save the extracted text for the generation feature
+      requestAnimationFrame(() => {
+        window.scrollTo(0, document.documentElement.scrollHeight);
+      });
       setResults(data);
       setOriginalResumeText(data.original_resume_text || "");
     } catch (error) {
@@ -52,7 +55,6 @@ const ATSMatcher = () => {
     }
   };
 
-  console.log({ originalResumeText, results });
   // 3. New function to trigger the DOCX generation and download
   const handleDownloadOptimizedCV = async () => {
     if (!results || !originalResumeText) {
@@ -111,13 +113,6 @@ const ATSMatcher = () => {
     }
   };
 
-  useEffect(() => {
-    requestAnimationFrame(() => {
-      window.scrollTo(0, document.documentElement.scrollHeight);
-    });
-  }, [JSON.stringify(results)]);
-
-  // Helper component for the Score Display
   const ScoreBadge = ({ score }) => (
     <div style={styles.scoreBadge}>
       <p style={{ margin: 0, fontSize: "3em", fontWeight: "bold" }}>{score}%</p>
