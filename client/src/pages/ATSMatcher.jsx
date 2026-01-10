@@ -220,7 +220,7 @@ const ATSMatcher = () => {
                 color="#9c27b0"
               />
             )}
-            {results.seniority_fit_score !== undefined && (
+            {results.seniority_fit_score !== undefined && showOtherFeatures && (
               <ScoreBadge
                 score={results.seniority_fit_score}
                 label="Seniority Fit"
