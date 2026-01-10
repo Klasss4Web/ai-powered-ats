@@ -51,110 +51,163 @@ def index():
 def health():
     return jsonify({"status": "ok"})
 
-def generate_optimized_resume_pdf(original_text, missing_skills, analysis_data=None):
+def generate_standard_resume_pdf(resume_text):
     """
-    Creates a new PDF document using an HTML template, inserting the original 
-    resume text and the AI-generated optimization section with comprehensive analysis.
-    """
-    
-    # 1. Prepare HTML Content for the Recommended Skills Section
-    skills_list_html = "".join([
-        f'<li class="missing-skill">• {skill} (Targeted Keyword)</li>'
-        for skill in missing_skills
-    ])
-
-    # 2. Build Gap Analysis HTML if available
-    gap_analysis_html = ""
-    if analysis_data and analysis_data.get("keyword_gap_analysis"):
-        gap_analysis_html = "<h3>Keyword Gap Analyzer</h3><div class='gap-analysis'>"
-        for skill, section in analysis_data["keyword_gap_analysis"].items():
-            gap_analysis_html += f'<div class="gap-item"><strong>{skill}</strong> → Add to: <em>{section}</em></div>'
-        gap_analysis_html += "</div>"
-
-    # 3. Build Weakly Represented Skills HTML if available
-    weakly_html = ""
-    if analysis_data and analysis_data.get("weakly_represented_skills"):
-        weakly_html = "<h3>Weakly Represented Skills (Needs More Emphasis)</h3><ul>"
-        for skill in analysis_data["weakly_represented_skills"]:
-            weakly_html += f'<li>{skill}</li>'
-        weakly_html += "</ul>"
-
-    # 4. Build Overused Terms HTML if available
-    overused_html = ""
-    if analysis_data and analysis_data.get("overused_terms"):
-        overused_html = "<h3>Overused Terms (Consider Varying)</h3><ul>"
-        for term in analysis_data["overused_terms"]:
-            overused_html += f'<li>{term}</li>'
-        overused_html += "</ul>"
-
-    # 5. Build Add to Resume Suggestions HTML if available
-    suggestions_html = ""
-    if analysis_data and analysis_data.get("add_to_resume_suggestions"):
-        suggestions_html = "<h3>Add to Resume Suggestions</h3><ul class='suggestions'>"
-        for suggestion in analysis_data["add_to_resume_suggestions"]:
-            suggestions_html += f'<li class="suggestion-item">{suggestion}</li>'
-        suggestions_html += "</ul>"
-
-    # 6. Define the HTML Template and CSS for Professional CV Format
-    html_template = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Optimized CV</title>
-        <style>
-            body {{ font-family: 'Helvetica', sans-serif; margin: 0; padding: 0; font-size: 11pt; line-height: 1.6; }}
-            .container {{ width: 800px; margin: 30px auto; padding: 30px; border: 1px solid #ccc; }}
-            h1 {{ color: #1a73e8; border-bottom: 2px solid #1a73e8; padding-bottom: 5px; font-size: 18pt; margin-bottom: 5px; }}
-            h2 {{ color: #1a73e8; border-bottom: 1px solid #1a73e8; padding-bottom: 3px; font-size: 14pt; margin-top: 25px; margin-bottom: 10px; }}
-            h3 {{ color: #34a853; margin-top: 15px; margin-bottom: 8px; font-size: 12pt; }}
-            .section-ai {{ background-color: #e6f0fe; padding: 15px; border-radius: 5px; margin-bottom: 20px; border-left: 4px solid #1a73e8; }}
-            .missing-skill {{ color: #d93025; font-weight: bold; margin-left: -20px; }}
-            .gap-analysis {{ background-color: #f9f9f9; padding: 10px; border-radius: 4px; margin-top: 10px; }}
-            .gap-item {{ padding: 8px; background-color: #fff; margin: 5px 0; border-left: 3px solid #d93025; }}
-            .suggestions {{ color: #1e8e3e; }}
-            .suggestion-item {{ background-color: #e8f5e9; padding: 8px; margin: 5px 0; border-radius: 3px; }}
-            pre {{ white-space: pre-wrap; word-wrap: break-word; font-family: 'Helvetica', monospace; font-size: 10pt; background-color: #f4f4f4; padding: 10px; border-radius: 4px; }}
-            ul {{ margin: 10px 0; padding-left: 20px; }}
-            li {{ margin: 5px 0; }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>📊 Optimized Resume Draft (AI Suggestions)</h1>
-
-            <div class="section-ai">
-                <h2>🌟 AI Recommended Skill Enhancement Section</h2>
-                <p>Based on the job requirements, consider integrating the following keywords into your experience or skill sections to maximize your ATS score:</p>
-                <ul>
-                    {skills_list_html}
-                </ul>
-            </div>
-
-            {gap_analysis_html}
-            {weakly_html}
-            {overused_html}
-            {suggestions_html}
-
-            <h2>📄 Extracted Original Resume Content</h2>
-            <p>Review the text below and integrate the recommended keywords where appropriate. Note: This is raw extracted text from your PDF.</p>
-            <pre>{original_text}</pre>
-        </div>
-    </body>
-    </html>
+    Creates a clean, professional PDF resume by parsing the raw text and formatting it into standard CV sections.
     """
     
-    # 3. Render HTML to PDF using WeasyPrint (import lazily to avoid startup failures)
+    # Use Gemini to parse the resume into structured sections
+    parse_prompt = f"""
+    Parse the following resume text into structured JSON format for a professional CV.
+    
+    Resume Text:
+    {resume_text}
+    
+    Extract and structure the information into the following sections:
+    - name: Full name of the person
+    - contact: Object with email, phone, location, linkedin (if available)
+    - summary: Professional summary or objective (if present)
+    - experience: Array of work experience objects, each with: title, company, duration, location, description (array of bullet points)
+    - education: Array of education objects, each with: degree, institution, year, gpa (if available)
+    - skills: Array of technical/professional skills
+    - certifications: Array of certifications (if any)
+    - projects: Array of project objects, each with: name, description, technologies (if any)
+    
+    Return ONLY valid JSON. If a section is not present, use empty array or null.
+    """
+    
     try:
-        from weasyprint import HTML
+        response = model.generate_content(parse_prompt)
+        response_text = getattr(response, 'text', None) or str(response)
+        if not response_text:
+            raise ValueError("Empty response from Gemini API")
+        json_string = response_text.strip().replace("```json", "").replace("```", "")
+        if not json_string:
+            raise ValueError("Empty JSON string after processing")
+        parsed_data = json.loads(json_string)
     except Exception as e:
-        raise RuntimeError(
-            "WeasyPrint is not available or missing system dependencies. "
-            "Install WeasyPrint and its platform libraries following: https://doc.courtbouillon.org/weasyprint/stable/first_steps.html. "
-            f"Details: {e}"
-        )
-
+        print(f"Gemini API error: {e}")
+        # Fallback: create basic structure
+        parsed_data = {
+            "name": "Professional Name",
+            "contact": {"email": "", "phone": "", "location": "", "linkedin": ""},
+            "summary": "",
+            "experience": [],
+            "education": [],
+            "skills": [],
+            "certifications": [],
+            "projects": []
+        }
+    
+    # Generate PDF using ReportLab
+    try:
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, ListFlowable, ListItem
+        from reportlab.lib.units import inch
+        from reportlab.lib import colors
+    except Exception as e:
+        raise RuntimeError(f"ReportLab not available: {e}")
+    
     pdf_stream = BytesIO()
-    HTML(string=html_template).write_pdf(pdf_stream)
+    doc = SimpleDocTemplate(pdf_stream, pagesize=letter)
+    styles = getSampleStyleSheet()
+    
+    # Custom styles
+    styles.add(ParagraphStyle(name='Name', fontSize=24, fontName='Helvetica-Bold', spaceAfter=12, alignment=1))
+    styles.add(ParagraphStyle(name='Contact', fontSize=10, textColor=colors.gray, alignment=1, spaceAfter=20))
+    styles.add(ParagraphStyle(name='SectionHeader', fontSize=14, fontName='Helvetica-Bold', textColor=colors.darkblue, spaceAfter=10, borderWidth=1, borderColor=colors.lightgrey, borderPadding=5))
+    styles.add(ParagraphStyle(name='JobTitle', fontSize=12, fontName='Helvetica-Bold', textColor=colors.darkblue))
+    styles.add(ParagraphStyle(name='JobCompany', fontSize=11, fontName='Helvetica-Oblique', textColor=colors.grey))
+    styles.add(ParagraphStyle(name='JobDuration', fontSize=10, textColor=colors.grey, spaceAfter=10))
+    styles.add(ParagraphStyle(name='NormalIndented', fontSize=10, leftIndent=20))
+    
+    story = []
+    
+    # Header
+    name = parsed_data.get('name') or 'Professional Name'
+    story.append(Paragraph(str(name), styles['Name']))
+    
+    contact_parts = []
+    contact = parsed_data.get('contact', {}) or {}
+    if contact.get('email'): contact_parts.append(str(contact['email']))
+    if contact.get('phone'): contact_parts.append(str(contact['phone']))
+    if contact.get('location'): contact_parts.append(str(contact['location']))
+    if contact.get('linkedin'): contact_parts.append(str(contact['linkedin']))
+    
+    story.append(Paragraph(' | '.join(contact_parts), styles['Contact']))
+    
+    # Summary
+    summary = parsed_data.get('summary')
+    if summary:
+        story.append(Paragraph('PROFESSIONAL SUMMARY', styles['SectionHeader']))
+        story.append(Paragraph(str(summary), styles['Normal']))
+        story.append(Spacer(1, 12))
+    
+    # Experience
+    if parsed_data.get('experience'):
+        story.append(Paragraph('PROFESSIONAL EXPERIENCE', styles['SectionHeader']))
+        for exp in parsed_data['experience']:
+            title = exp.get('title') or ''
+            story.append(Paragraph(str(title), styles['JobTitle']))
+            company_info = str(exp.get('company', ''))
+            if exp.get('location'):
+                company_info += f" - {str(exp.get('location', ''))}"
+            story.append(Paragraph(company_info, styles['JobCompany']))
+            if exp.get('duration'):
+                story.append(Paragraph(str(exp.get('duration', '')), styles['JobDuration']))
+            
+            if exp.get('description'):
+                for desc in exp['description']:
+                    story.append(Paragraph(f"• {str(desc)}", styles['NormalIndented']))
+            story.append(Spacer(1, 12))
+    
+    # Education
+    if parsed_data.get('education'):
+        story.append(Paragraph('EDUCATION', styles['SectionHeader']))
+        for edu in parsed_data['education']:
+            degree = str(edu.get('degree', ''))
+            institution = str(edu.get('institution', ''))
+            year = str(edu.get('year', ''))
+            gpa = str(edu.get('gpa', ''))
+            
+            edu_text = f"<b>{degree}</b><br/>{institution}"
+            if year:
+                edu_text += f", {year}"
+            if gpa:
+                edu_text += f" (GPA: {gpa})"
+            
+            story.append(Paragraph(edu_text, styles['Normal']))
+            story.append(Spacer(1, 6))
+    
+    # Skills
+    if parsed_data.get('skills'):
+        story.append(Paragraph('SKILLS', styles['SectionHeader']))
+        skills_text = ', '.join(str(skill) for skill in parsed_data['skills'])
+        story.append(Paragraph(skills_text, styles['Normal']))
+        story.append(Spacer(1, 12))
+    
+    # Certifications
+    if parsed_data.get('certifications'):
+        story.append(Paragraph('CERTIFICATIONS', styles['SectionHeader']))
+        for cert in parsed_data['certifications']:
+            story.append(Paragraph(f"• {str(cert)}", styles['Normal']))
+        story.append(Spacer(1, 12))
+    
+    # Projects
+    if parsed_data.get('projects'):
+        story.append(Paragraph('PROJECTS', styles['SectionHeader']))
+        for proj in parsed_data['projects']:
+            name = str(proj.get('name', ''))
+            story.append(Paragraph(name, styles['JobTitle']))
+            if proj.get('description'):
+                story.append(Paragraph(str(proj.get('description', '')), styles['Normal']))
+            if proj.get('technologies'):
+                tech_text = f"Technologies: {', '.join(str(tech) for tech in proj['technologies'])}"
+                story.append(Paragraph(tech_text, styles['NormalIndented']))
+            story.append(Spacer(1, 12))
+    
+    doc.build(story)
     pdf_stream.seek(0)
     return pdf_stream
 
@@ -358,6 +411,41 @@ def generate_cv():
             return jsonify({"error": f"Failed to generate fallback DOCX: {ex}"}), 500
     except Exception as e:
         return jsonify({"error": f"Failed to generate PDF: {e}"}), 500
+
+
+@app.route('/api/generate-standard-resume', methods=['POST'])
+def generate_standard_resume():
+    """Endpoint to generate and return a clean, standard PDF resume."""
+    
+    try:
+        data = request.get_json()
+    except Exception as e:
+        return jsonify({"error": "Invalid JSON in request."}), 400
+    
+    if not data:
+        return jsonify({"error": "No JSON data in request."}), 400
+        
+    resume_text = data.get('resume_text')
+    
+    if not resume_text:
+        return jsonify({"error": "Missing resume text."}), 400
+    
+    if not model:
+        return jsonify({"error": "Gemini API model is not available. Check server logs."}), 500
+    
+    try:
+        pdf_stream = generate_standard_resume_pdf(resume_text)
+        return send_file(
+            pdf_stream,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name='standard_resume.pdf'
+        )
+    except RuntimeError as e:
+        return jsonify({"error": f"PDF generation failed: {e}"}), 500
+    except Exception as e:
+        return jsonify({"error": f"Failed to generate standard resume: {e}"}), 500
+
 
 if __name__ == '__main__':
     # Ensure you set GEMINI_API_KEY environment variable first!
