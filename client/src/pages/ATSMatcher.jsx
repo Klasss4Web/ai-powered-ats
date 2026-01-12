@@ -14,6 +14,8 @@ const ATSMatcher = () => {
   const [error, setError] = useState(null);
   const [originalResumeText, setOriginalResumeText] = useState("");
   const [showAllAnalysis, setShowAllAnalysis] = useState(false);
+  const [downloadingOptimized, setDownloadingOptimized] = useState(false);
+  const [downloadingStandard, setDownloadingStandard] = useState(false);
 
   // Alert modal state
   const [alertModal, setAlertModal] = useState({
@@ -92,6 +94,7 @@ const ATSMatcher = () => {
       return;
     }
 
+    setDownloadingOptimized(true);
     try {
       const response = await fetch("http://127.0.0.1:5000/api/generate-cv", {
         method: "POST",
@@ -141,6 +144,8 @@ const ATSMatcher = () => {
       }
     } catch (error) {
       console.error("Download error:", error);
+    } finally {
+      setDownloadingOptimized(false);
     }
   };
 
@@ -151,6 +156,7 @@ const ATSMatcher = () => {
       return;
     }
 
+    setDownloadingStandard(true);
     try {
       const response = await fetch(
         "http://127.0.0.1:5000/api/generate-standard-resume",
@@ -181,6 +187,8 @@ const ATSMatcher = () => {
       }
     } catch (error) {
       console.error("Download error:", error);
+    } finally {
+      setDownloadingStandard(false);
     }
   };
 
@@ -429,25 +437,51 @@ const ATSMatcher = () => {
           {/* Download Button */}
           <button
             onClick={handleDownloadOptimizedCV}
+            disabled={downloadingOptimized}
             style={{
               ...styles.submitButton,
-              backgroundColor: "#34a853",
+              backgroundColor: downloadingOptimized ? "#ccc" : "#34a853",
               marginTop: "20px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "10px",
             }}
           >
-            ⬇️ Download Optimized CV (.docx)
+            {downloadingOptimized && (
+              <div
+                className="spinner"
+                style={{ width: "16px", height: "16px" }}
+              />
+            )}
+            {downloadingOptimized
+              ? "Generating..."
+              : "⬇️ Download Optimized CV (.docx)"}
           </button>
 
           {/* Standard Resume Download Button */}
           <button
             onClick={handleDownloadStandardResume}
+            disabled={downloadingStandard}
             style={{
               ...styles.submitButton,
-              backgroundColor: "#4285f4",
+              backgroundColor: downloadingStandard ? "#ccc" : "#4285f4",
               marginTop: "15px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "10px",
             }}
           >
-            📄 Download Standard Resume (PDF)
+            {downloadingStandard && (
+              <div
+                className="spinner"
+                style={{ width: "16px", height: "16px" }}
+              />
+            )}
+            {downloadingStandard
+              ? "Generating..."
+              : "📄 Download Standard Resume (PDF)"}
           </button>
 
           {/* See All Analysis Button */}

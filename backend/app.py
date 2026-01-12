@@ -64,16 +64,21 @@ def generate_standard_resume_pdf(resume_text):
     {resume_text}
     
     Extract and structure the information into the following sections:
-    - name: Full name of the person
-    - contact: Object with email, phone, location, linkedin (if available)
-    - summary: Professional summary or objective (if present)
-    - experience: Array of work experience objects, each with: title, company, duration, location, description (array of bullet points)
-    - education: Array of education objects, each with: degree, institution, year, gpa (if available)
-    - skills: Array of technical/professional skills
-    - certifications: Array of certifications (if any)
-    - projects: Array of project objects, each with: name, description, technologies (if any)
+    - name: Full name of the person (string)
+    - contact: Object with email, phone, location, linkedin (strings, use empty string if not found)
+    - summary: Professional summary or objective (string, use empty string if not present)
+    - experience: Array of work experience objects, each with: title (string), company (string), duration (string), location (string), description (array of strings)
+    - education: Array of education objects, each with: degree (string), institution (string), year (string), gpa (string)
+    - skills: Array of technical/professional skills (strings only)
+    - certifications: Array of certification names (strings only, no JSON formatting)
+    - projects: Array of project objects, each with: name (string), description (string or array of strings), technologies (array of strings)
     
-    Return ONLY valid JSON. If a section is not present, use empty array or null.
+    IMPORTANT: 
+    - Return ONLY valid JSON. Do not add any other text.
+    - All string values should be plain text without quotes, brackets, or JSON formatting.
+    - Arrays should contain only the actual content strings.
+    - If a section is not present, use empty array [] or empty string "".
+    - Do not include any JSON-like formatting in the string values themselves.
     """
     
     try:
@@ -81,10 +86,69 @@ def generate_standard_resume_pdf(resume_text):
         response_text = getattr(response, 'text', None) or str(response)
         if not response_text:
             raise ValueError("Empty response from Gemini API")
-        json_string = response_text.strip().replace("```json", "").replace("```", "")
+        json_string = response_text.strip().replace("```json", "").replace("```", "").replace("```JSON", "")
+        # Clean up any trailing/leading non-JSON text
+        start_idx = json_string.find('{')
+        end_idx = json_string.rfind('}') + 1
+        if start_idx != -1 and end_idx > start_idx:
+            json_string = json_string[start_idx:end_idx]
         if not json_string:
             raise ValueError("Empty JSON string after processing")
         parsed_data = json.loads(json_string)
+        
+        # Validate and clean the parsed data
+        def clean_string(value):
+            if isinstance(value, str):
+                return value.strip().replace('{', '').replace('}', '').replace('"', '').replace("'", '')
+            return str(value).strip()
+        
+        def clean_array(arr):
+            if isinstance(arr, list):
+                return [clean_string(item) for item in arr if clean_string(item)]
+            elif isinstance(arr, str):
+                # Handle case where array is returned as string
+                return [item.strip() for item in arr.split(',') if item.strip()]
+            return []
+        
+        # Clean each section
+        parsed_data['name'] = clean_string(parsed_data.get('name', 'Professional Name'))
+        parsed_data['summary'] = clean_string(parsed_data.get('summary', ''))
+        parsed_data['skills'] = clean_array(parsed_data.get('skills', []))
+        parsed_data['certifications'] = clean_array(parsed_data.get('certifications', []))
+        
+        # Clean contact info
+        contact = parsed_data.get('contact', {})
+        if isinstance(contact, dict):
+            for key in contact:
+                contact[key] = clean_string(contact[key])
+        else:
+            parsed_data['contact'] = {"email": "", "phone": "", "location": "", "linkedin": ""}
+            
+        # Clean experience
+        if isinstance(parsed_data.get('experience'), list):
+            for exp in parsed_data['experience']:
+                if isinstance(exp, dict):
+                    for key in exp:
+                        if key == 'description' and isinstance(exp[key], list):
+                            exp[key] = [clean_string(desc) for desc in exp[key]]
+                        else:
+                            exp[key] = clean_string(exp[key])
+        
+        # Clean projects
+        if isinstance(parsed_data.get('projects'), list):
+            for proj in parsed_data['projects']:
+                if isinstance(proj, dict):
+                    for key in proj:
+                        if key == 'description':
+                            if isinstance(proj[key], list):
+                                proj[key] = [clean_string(desc) for desc in proj[key]]
+                            else:
+                                proj[key] = clean_string(proj[key])
+                        elif key == 'technologies' and isinstance(proj[key], list):
+                            proj[key] = [clean_string(tech) for tech in proj[key]]
+                        else:
+                            proj[key] = clean_string(proj[key])
+        
     except Exception as e:
         print(f"Gemini API error: {e}")
         # Fallback: create basic structure
@@ -110,11 +174,11 @@ def generate_standard_resume_pdf(resume_text):
         raise RuntimeError(f"ReportLab not available: {e}")
     
     pdf_stream = BytesIO()
-    doc = SimpleDocTemplate(pdf_stream, pagesize=letter)
+    doc = SimpleDocTemplate(pdf_stream, pagesize=letter, leftMargin=36, rightMargin=36, topMargin=36, bottomMargin=36)
     styles = getSampleStyleSheet()
     
     # Custom styles
-    styles.add(ParagraphStyle(name='Name', fontSize=24, fontName='Helvetica-Bold', spaceAfter=12, alignment=1))
+    styles.add(ParagraphStyle(name='Name', fontSize=24, fontName='Helvetica-Bold', spaceAfter=20, alignment=1))
     styles.add(ParagraphStyle(name='Contact', fontSize=10, textColor=colors.gray, alignment=1, spaceAfter=20))
     styles.add(ParagraphStyle(name='SectionHeader', fontSize=14, fontName='Helvetica-Bold', textColor=colors.darkblue, spaceAfter=10, borderWidth=1, borderColor=colors.lightgrey, borderPadding=5))
     styles.add(ParagraphStyle(name='JobTitle', fontSize=12, fontName='Helvetica-Bold', textColor=colors.darkblue))
@@ -183,7 +247,7 @@ def generate_standard_resume_pdf(resume_text):
     # Skills
     if parsed_data.get('skills'):
         story.append(Paragraph('SKILLS', styles['SectionHeader']))
-        skills_text = ', '.join(str(skill) for skill in parsed_data['skills'])
+        skills_text = ', '.join(str(skill).strip() for skill in parsed_data['skills'] if str(skill).strip())
         story.append(Paragraph(skills_text, styles['Normal']))
         story.append(Spacer(1, 12))
     
@@ -191,19 +255,39 @@ def generate_standard_resume_pdf(resume_text):
     if parsed_data.get('certifications'):
         story.append(Paragraph('CERTIFICATIONS', styles['SectionHeader']))
         for cert in parsed_data['certifications']:
-            story.append(Paragraph(f"• {str(cert)}", styles['Normal']))
+            cert_text = str(cert).strip()
+            # Clean up any JSON formatting artifacts
+            cert_text = cert_text.replace('{', '').replace('}', '').replace('"', '').replace("'", '').strip()
+            if cert_text:
+                story.append(Paragraph(f"• {cert_text}", styles['Normal']))
         story.append(Spacer(1, 12))
     
     # Projects
     if parsed_data.get('projects'):
         story.append(Paragraph('PROJECTS', styles['SectionHeader']))
         for proj in parsed_data['projects']:
-            name = str(proj.get('name', ''))
-            story.append(Paragraph(name, styles['JobTitle']))
-            if proj.get('description'):
-                story.append(Paragraph(str(proj.get('description', '')), styles['Normal']))
-            if proj.get('technologies'):
-                tech_text = f"Technologies: {', '.join(str(tech) for tech in proj['technologies'])}"
+            name = str(proj.get('name', '')).strip()
+            if name:
+                story.append(Paragraph(name, styles['JobTitle']))
+            
+            description = proj.get('description')
+            if description:
+                if isinstance(description, list):
+                    for desc_item in description:
+                        desc_text = str(desc_item).strip()
+                        if desc_text:
+                            story.append(Paragraph(f"• {desc_text}", styles['NormalIndented']))
+                else:
+                    desc_text = str(description).strip()
+                    if desc_text:
+                        story.append(Paragraph(desc_text, styles['Normal']))
+            
+            technologies = proj.get('technologies')
+            if technologies:
+                if isinstance(technologies, list):
+                    tech_text = f"Technologies: {', '.join(str(tech).strip() for tech in technologies if str(tech).strip())}"
+                else:
+                    tech_text = f"Technologies: {str(technologies).strip()}"
                 story.append(Paragraph(tech_text, styles['NormalIndented']))
             story.append(Spacer(1, 12))
     
