@@ -1,4 +1,6 @@
 import { useState } from "react";
+
+import AlertModal from "../components/AlertModal";
 import AnimatedLoader from "../components/loaders/animated-loader/AnimatedLoader";
 
 // --- CORE COMPONENT: ATS Matcher ---
@@ -12,6 +14,32 @@ const ATSMatcher = () => {
   const [error, setError] = useState(null);
   const [originalResumeText, setOriginalResumeText] = useState("");
   const [showAllAnalysis, setShowAllAnalysis] = useState(false);
+  const [downloadingOptimized, setDownloadingOptimized] = useState(false);
+  const [downloadingStandard, setDownloadingStandard] = useState(false);
+
+  // Alert modal state
+  const [alertModal, setAlertModal] = useState({
+    isOpen: false,
+    message: "",
+    type: "info",
+  });
+
+  // Custom alert function
+  const showAlert = (message, type = "info") => {
+    setAlertModal({
+      isOpen: true,
+      message,
+      type,
+    });
+  };
+
+  const closeAlert = () => {
+    setAlertModal({
+      isOpen: false,
+      message: "",
+      type: "info",
+    });
+  };
 
   // Function to handle the form submission and API call
   const handleSubmission = async (e) => {
@@ -53,7 +81,7 @@ const ATSMatcher = () => {
       setOriginalResumeText(data.original_resume_text || "");
     } catch (error) {
       console.error("Submission error:", error);
-      setError(`Analysis Failed: ${error.message || "Check server status."}`);
+      setError("Analysis Failed: Please try again later.");
     } finally {
       setLoading(false);
     }
@@ -62,10 +90,11 @@ const ATSMatcher = () => {
   // 3. New function to trigger the DOCX generation and download
   const handleDownloadOptimizedCV = async () => {
     if (!results || !originalResumeText) {
-      alert("Please run the analysis first.");
+      showAlert("Please run the analysis first.", "warning");
       return;
     }
 
+    setDownloadingOptimized(true);
     try {
       const response = await fetch("http://127.0.0.1:5000/api/generate-cv", {
         method: "POST",
@@ -109,11 +138,57 @@ const ATSMatcher = () => {
         a.click();
         a.remove();
         window.URL.revokeObjectURL(url);
+        showAlert("Optimized CV downloaded successfully!", "success");
       } else {
-        alert("Failed to generate document.");
+        showAlert("Failed to generate document.", "error");
       }
     } catch (error) {
       console.error("Download error:", error);
+    } finally {
+      setDownloadingOptimized(false);
+    }
+  };
+
+  // Function to download standard PDF resume
+  const handleDownloadStandardResume = async () => {
+    if (!results || !originalResumeText) {
+      showAlert("Please run the analysis first.", "warning");
+      return;
+    }
+
+    setDownloadingStandard(true);
+    try {
+      const response = await fetch(
+        "http://127.0.0.1:5000/api/generate-standard-resume",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            resume_text: originalResumeText,
+          }),
+        }
+      );
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "standard_resume.pdf";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+        showAlert("Standard resume downloaded successfully!", "success");
+      } else {
+        showAlert("Failed to generate standard resume.", "error");
+      }
+    } catch (error) {
+      console.error("Download error:", error);
+    } finally {
+      setDownloadingStandard(false);
     }
   };
 
@@ -362,13 +437,51 @@ const ATSMatcher = () => {
           {/* Download Button */}
           <button
             onClick={handleDownloadOptimizedCV}
+            disabled={downloadingOptimized}
             style={{
               ...styles.submitButton,
-              backgroundColor: "#34a853",
+              backgroundColor: downloadingOptimized ? "#ccc" : "#34a853",
               marginTop: "20px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "10px",
             }}
           >
-            ⬇️ Download Optimized CV (.docx)
+            {downloadingOptimized && (
+              <div
+                className="spinner"
+                style={{ width: "16px", height: "16px" }}
+              />
+            )}
+            {downloadingOptimized
+              ? "Generating..."
+              : "⬇️ Download Optimized CV (.docx)"}
+          </button>
+
+          {/* Standard Resume Download Button */}
+          <button
+            onClick={handleDownloadStandardResume}
+            disabled={downloadingStandard}
+            style={{
+              ...styles.submitButton,
+              backgroundColor: downloadingStandard ? "#ccc" : "#4285f4",
+              marginTop: "15px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "10px",
+            }}
+          >
+            {downloadingStandard && (
+              <div
+                className="spinner"
+                style={{ width: "16px", height: "16px" }}
+              />
+            )}
+            {downloadingStandard
+              ? "Generating..."
+              : "📄 Download Standard Resume (PDF)"}
           </button>
 
           {/* See All Analysis Button */}
@@ -598,6 +711,14 @@ const ATSMatcher = () => {
           </div>
         </div>
       )}
+
+      {/* Custom Alert Modal */}
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        message={alertModal.message}
+        onClose={closeAlert}
+        type={alertModal.type}
+      />
     </div>
   );
 };

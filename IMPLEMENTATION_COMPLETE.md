@@ -106,7 +106,9 @@ When downloading the optimized CV/resume, you now get:
    ├─ Keyword Gap Analyzer (where to add what)
    └─ Add to Resume Suggestions (ready-to-copy bullet points)
    ↓
-5. Download Optimized Resume (Includes all analysis)
+5. Download Options:
+   ├─ Optimized CV (PDF/DOCX with full analysis and AI suggestions)
+   └─ Standard Resume (Clean PDF in professional CV format)
 ```
 
 ---

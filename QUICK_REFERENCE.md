@@ -33,11 +33,9 @@
    - Green highlighted section
 
 5. **Enhanced Download**
-   - Includes all analysis data in generated PDF/DOCX
-   - Shows gap analysis
-   - Lists weakly represented skills
-   - Flags overused terms
-   - Includes actionable suggestions
+   - **Optimized CV**: Includes all analysis data in generated PDF/DOCX with AI suggestions
+   - **Standard Resume**: Clean, professional PDF resume formatted in standard CV structure
+   - Shows gap analysis, weakly represented skills, overused terms, and actionable suggestions
 
 ### Backend Features (app.py)
 
@@ -144,15 +142,24 @@ Enhanced prompt in `/api/match` endpoint requests:
 ### Frontend → Download
 
 ```javascript
+// Optimized CV with analysis
 fetch("http://127.0.0.1:5000/api/generate-cv", {
   method: "POST",
   body: JSON.stringify({
     original_resume_text,
     missing_skills,
-    keyword_gap_analysis, // NEW
-    weakly_represented_skills, // NEW
-    overused_terms, // NEW
-    add_to_resume_suggestions, // NEW
+    keyword_gap_analysis,
+    weakly_represented_skills,
+    overused_terms,
+    add_to_resume_suggestions,
+  }),
+});
+
+// Standard Resume (clean PDF)
+fetch("http://127.0.0.1:5000/api/generate-standard-resume", {
+  method: "POST",
+  body: JSON.stringify({
+    resume_text: original_resume_text,
   }),
 });
 ```
