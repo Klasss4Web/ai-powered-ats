@@ -106,6 +106,18 @@ def init_db():
             )
         ''')
 
+        # Create saved resumes table
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS saved_resumes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                filename TEXT NOT NULL,
+                resume_text TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (id)
+            )
+        ''')
+
         db.commit()
 
 # 3. Authentication Functions
@@ -1409,19 +1421,32 @@ def process_match():
         return jsonify({"error": "Gemini API model is not available. Check server logs."}), 500
 
     # Ensure all required data is present
-    if 'resume' not in request.files or 'job_description' not in request.form:
-        return jsonify({"error": "Missing resume file or job description in the request."}), 400
+    has_resume_file = 'resume' in request.files
+    has_resume_id = 'resume_id' in request.form
+    if (not has_resume_file and not has_resume_id) or 'job_description' not in request.form:
+        return jsonify({"error": "Missing resume file or resume_id, or job description in the request."}), 400
 
-    # Extract data from the POST request
-    resume_file = request.files['resume']
     job_description = request.form['job_description']
 
-    # 1. Convert PDF to Text
-    # We pass the stream object from the request file to our helper function
-    resume_text = extract_text_from_pdf(resume_file.stream)
+    # Get resume text
+    if has_resume_id:
+        resume_id = request.form['resume_id']
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute('SELECT resume_text FROM saved_resumes WHERE id = ? AND user_id = ?', (resume_id, g.user['id']))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Saved resume not found."}), 404
+        resume_text = row['resume_text']
+        resume_filename = f"saved_resume_{resume_id}.pdf"  # Placeholder
+    else:
+        resume_file = request.files['resume']
+        resume_filename = resume_file.filename
+        # 1. Convert PDF to Text
+        resume_text = extract_text_from_pdf(resume_file.stream)
 
     if not resume_text or len(resume_text.strip()) < 50:
-        return jsonify({"error": "Could not extract sufficient text from the PDF file. Is the PDF text-searchable?"}), 400
+        return jsonify({"error": "Could not extract sufficient text from the resume."}), 400
 
     # 2. Construct the Prompt for Gemini
     prompt = f"""
@@ -1668,6 +1693,64 @@ def process_batch_match():
             })
 
     return jsonify({"results": results})
+
+
+@app.route('/api/resumes/save', methods=['POST'])
+@token_required
+def save_resume():
+    """Save a resume for the user."""
+    if 'resume' not in request.files:
+        return jsonify({"error": "No resume file provided."}), 400
+
+    resume_file = request.files['resume']
+    if not resume_file.filename:
+        return jsonify({"error": "No file selected."}), 400
+
+    # Check saved resume limit
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute('SELECT COUNT(*) FROM saved_resumes WHERE user_id = ?', (g.user['id'],))
+    count = cursor.fetchone()[0]
+    max_resumes = 3 if g.user['subscription_type'] == 'premium' else 1
+    if count >= max_resumes:
+        return jsonify({"error": f"You can save up to {max_resumes} resume(s)."}), 400
+
+    # Extract text
+    resume_text = extract_text_from_pdf(resume_file.stream)
+    if not resume_text or len(resume_text.strip()) < 50:
+        return jsonify({"error": "Could not extract sufficient text from the PDF."}), 400
+
+    # Save to database
+    cursor.execute('INSERT INTO saved_resumes (user_id, filename, resume_text) VALUES (?, ?, ?)',
+                   (g.user['id'], resume_file.filename, resume_text))
+    db.commit()
+
+    return jsonify({"message": "Resume saved successfully.", "id": cursor.lastrowid})
+
+
+@app.route('/api/resumes', methods=['GET'])
+@token_required
+def get_saved_resumes():
+    """Get user's saved resumes."""
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute('SELECT id, filename, created_at FROM saved_resumes WHERE user_id = ? ORDER BY created_at DESC',
+                   (g.user['id'],))
+    resumes = cursor.fetchall()
+    return jsonify({"resumes": [dict(row) for row in resumes]})
+
+
+@app.route('/api/resumes/<int:resume_id>', methods=['DELETE'])
+@token_required
+def delete_saved_resume(resume_id):
+    """Delete a saved resume."""
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute('DELETE FROM saved_resumes WHERE id = ? AND user_id = ?', (resume_id, g.user['id']))
+    if cursor.rowcount == 0:
+        return jsonify({"error": "Resume not found."}), 404
+    db.commit()
+    return jsonify({"message": "Resume deleted successfully."})
 
 
 if __name__ == '__main__':
