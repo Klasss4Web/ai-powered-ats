@@ -1,14 +1,20 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 
 import AlertModal from "../components/AlertModal";
+import UserAvatar from "../components/UserAvatar";
+import UsageStatus from "../components/UsageStatus";
+import UpgradeModal from "../components/UpgradeModal";
+import LoginModal from "../components/auth/LoginModal";
 import AnimatedLoader from "../components/loaders/animated-loader/AnimatedLoader";
-
-// --- CORE COMPONENT: ATS Matcher ---
 
 const ATSMatcher = () => {
   const showOtherFeatures = false; // Toggle to show/hide extended features
+  const pendingAnalysis = localStorage.getItem("pendingAnalysis");
   const [resumeFile, setResumeFile] = useState(null);
-  const [jobDescription, setJobDescription] = useState("");
+  const [jobDescription, setJobDescription] = useState(
+    pendingAnalysis ? JSON.parse(pendingAnalysis).jobDescription : ""
+  );
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -17,12 +23,182 @@ const ATSMatcher = () => {
   const [downloadingOptimized, setDownloadingOptimized] = useState(false);
   const [downloadingStandard, setDownloadingStandard] = useState(false);
 
+  // Authentication state
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [user, setUser] = useState(null);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+
+  // Usage and subscription state
+  const [usageInfo, setUsageInfo] = useState(null);
+  const [loadingUsage, setLoadingUsage] = useState(false);
+
+  // Upgrade modal state
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgradeModalData, setUpgradeModalData] = useState(null);
+
   // Alert modal state
   const [alertModal, setAlertModal] = useState({
     isOpen: false,
     message: "",
     type: "info",
   });
+
+  // Manual verification state
+  const [showManualVerify, setShowManualVerify] = useState(false);
+  const [manualVerifyRef, setManualVerifyRef] = useState("");
+  const [manualVerifyGateway, setManualVerifyGateway] = useState("paystack");
+
+  // Check authentication on app load
+  useEffect(() => {
+    const checkAuth = async () => {
+      const token = localStorage.getItem("authToken");
+      if (token) {
+        try {
+          const response = await fetch(
+            "http://127.0.0.1:5000/api/auth/verify",
+            {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            }
+          );
+
+          if (response.ok) {
+            const data = await response.json();
+            setUser({
+              id: data.user.id,
+              email: data.user.email,
+              name: data.user.name,
+              subscription_type: data.user.subscription_type,
+              subscription_expires_at: data.user.subscription_expires_at,
+              avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.user.email}`,
+            });
+            setIsAuthenticated(true);
+            // Fetch usage info after login
+            fetchUsageInfo();
+
+            // Check if user just completed payment
+            const paymentSuccess = localStorage.getItem("paymentSuccess");
+            if (paymentSuccess === "true") {
+              showAlert(
+                "Payment successful! Your usage limit has been updated. Please click 'Analyze Resume' to continue with your analysis.",
+                "success"
+              );
+              // Refresh usage info to reflect the payment
+              fetchUsageInfo();
+              // Don't clear the flag yet - keep it until user performs analysis
+              // localStorage.removeItem("paymentSuccess");
+            }
+          } else {
+            localStorage.removeItem("authToken");
+          }
+        } catch (error) {
+          console.error("Auth verification error:", error);
+          // Don't remove token on network errors, just log
+        }
+      }
+    };
+
+    checkAuth();
+  }, []);
+
+  // Check for payment verification on page load (independent of auth)
+  useEffect(() => {
+    console.log("Payment verification useEffect running");
+    const checkForPaymentVerification = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const paypalToken = urlParams.get("token");
+      const payerId = urlParams.get("PayerID");
+      const paystackReference = urlParams.get("trxref");
+      const reference = urlParams.get("reference");
+
+      console.log("URL parameters detected:", {
+        paypalToken,
+        payerId,
+        paystackReference,
+        reference,
+      });
+      console.log("Current URL:", window.location.href);
+
+      if ((paypalToken && payerId) || paystackReference || reference) {
+        // Clean up the URL
+        window.history.replaceState(
+          {},
+          document.title,
+          window.location.pathname
+        );
+
+        const token = localStorage.getItem("authToken");
+        if (!token) {
+          console.log(
+            "No auth token found for payment verification - showing manual verify option"
+          );
+          // Show manual verification option
+          if (paypalToken && payerId) {
+            setManualVerifyRef(paypalToken);
+            setManualVerifyGateway("paypal");
+            setShowManualVerify(true);
+          } else if (paystackReference) {
+            setManualVerifyRef(paystackReference);
+            setManualVerifyGateway("paystack");
+            setShowManualVerify(true);
+          } else if (reference) {
+            setManualVerifyRef(reference);
+            setManualVerifyGateway("paystack");
+            setShowManualVerify(true);
+          }
+          return;
+        }
+
+        if (paypalToken && payerId) {
+          console.log("Found PayPal verification parameters:", {
+            paypalToken,
+            payerId,
+          });
+          // Verify PayPal payment
+          verifyPayPalPayment(paypalToken, token);
+        } else if (paystackReference) {
+          console.log("Found Paystack trxref parameter:", paystackReference);
+          // Verify Paystack payment
+          handleVerifyPayment(paystackReference);
+        } else if (reference) {
+          console.log("Found Paystack reference parameter:", reference);
+          // Some Paystack integrations use 'reference' instead of 'trxref'
+          handleVerifyPayment(reference);
+        }
+      } else {
+        console.log("No payment verification parameters found in URL");
+      }
+    };
+
+    checkForPaymentVerification();
+  }, []);
+
+  // Fetch usage information
+  const fetchUsageInfo = async () => {
+    const token = localStorage.getItem("authToken");
+    if (!token) return;
+
+    setLoadingUsage(true);
+    try {
+      const response = await fetch("http://127.0.0.1:5000/api/user/usage", {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUsageInfo(data);
+      }
+    } catch (error) {
+      console.error("Usage fetch error:", error);
+    } finally {
+      setLoadingUsage(false);
+    }
+  };
 
   // Custom alert function
   const showAlert = (message, type = "info") => {
@@ -39,11 +215,78 @@ const ATSMatcher = () => {
       message: "",
       type: "info",
     });
+    localStorage.removeItem("paymentSuccess");
   };
+
+  // Authentication functions
+  const handleLogin = (user) => {
+    setUser({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      subscription_type: user.subscription_type,
+      subscription_expires_at: user.subscription_expires_at,
+      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`,
+    });
+    setIsAuthenticated(true);
+    setShowLoginModal(false);
+    showAlert("Successfully logged in!", "success");
+    // Fetch usage info after login
+    fetchUsageInfo();
+  };
+
+  const handleLogout = async () => {
+    try {
+      const token = localStorage.getItem("authToken");
+      if (token) {
+        await fetch("http://127.0.0.1:5000/api/auth/logout", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Logout error:", error);
+    } finally {
+      // Always clear local state and token
+      localStorage.removeItem("authToken");
+      setUser(null);
+      setIsAuthenticated(false);
+      setResults(null);
+      setOriginalResumeText("");
+      showAlert("Logged out successfully", "info");
+    }
+  };
+
+  console.log({ usageInfo });
 
   // Function to handle the form submission and API call
   const handleSubmission = async (e) => {
     e.preventDefault();
+
+    // Check authentication first
+    if (!isAuthenticated) {
+      setShowLoginModal(true);
+      return;
+    }
+
+    // Check usage limits
+    if (usageInfo && !usageInfo.can_perform_analysis) {
+      // Fetch latest usage info in case it's stale
+      await fetchUsageInfo();
+      // Check again with updated info
+      if (usageInfo && !usageInfo.can_perform_analysis) {
+        setUpgradeModalData({
+          subscriptionType: user?.subscription_type || "free",
+          currentUsage: usageInfo.current_usage,
+          dailyLimit: usageInfo.effective_limit || usageInfo.daily_limit,
+          isExpired: usageInfo.is_expired,
+        });
+        setShowUpgradeModal(true);
+        return;
+      }
+    }
 
     if (!resumeFile || !jobDescription.trim()) {
       setError("Please upload a resume (PDF) and paste the job description.");
@@ -60,14 +303,29 @@ const ATSMatcher = () => {
     formData.append("job_description", jobDescription);
 
     try {
+      const token = localStorage.getItem("authToken");
       const response = await fetch("http://127.0.0.1:5000/api/match", {
         method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
         body: formData,
       });
 
       const data = await response.json();
 
       if (!response.ok) {
+        // Handle usage limit errors specifically
+        if (response.status === 429 && data.upgrade_required) {
+          const upgradeMessage =
+            user?.subscription_type === "free"
+              ? "You've reached your daily limit of 1 analysis. Upgrade to Premium for up to 10 analyses per day!"
+              : "You've reached your daily analysis limit. Please try again tomorrow.";
+          showAlert(upgradeMessage, "warning");
+          // Refresh usage info
+          fetchUsageInfo();
+          return;
+        }
         throw new Error(data.error || `Server error: ${response.status}`);
       }
 
@@ -79,6 +337,12 @@ const ATSMatcher = () => {
       setResumeFile(null);
       setJobDescription("");
       setOriginalResumeText(data.original_resume_text || "");
+
+      // Clear payment success flag after successful analysis
+      localStorage.removeItem("paymentSuccess");
+
+      // Refresh usage info after successful analysis
+      fetchUsageInfo();
     } catch (error) {
       console.error("Submission error:", error);
       setError("Analysis Failed: Please try again later.");
@@ -96,10 +360,12 @@ const ATSMatcher = () => {
 
     setDownloadingOptimized(true);
     try {
+      const token = localStorage.getItem("authToken");
       const response = await fetch("http://127.0.0.1:5000/api/generate-cv", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           original_resume_text: originalResumeText,
@@ -158,12 +424,14 @@ const ATSMatcher = () => {
 
     setDownloadingStandard(true);
     try {
+      const token = localStorage.getItem("authToken");
       const response = await fetch(
         "http://127.0.0.1:5000/api/generate-standard-resume",
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
             resume_text: originalResumeText,
@@ -192,15 +460,461 @@ const ATSMatcher = () => {
     }
   };
 
+  // Handle pay-as-you-go payment
+  const handlePayAsYouGo = async (gateway = "paystack") => {
+    if (!user) return;
+
+    setShowUpgradeModal(false);
+    showAlert("Initializing payment...", "info");
+
+    try {
+      const token = localStorage.getItem("authToken");
+
+      // Step 1: Get Paystack public key
+      const configResponse = await fetch(
+        "http://127.0.0.1:5000/api/payment/config"
+      );
+      if (!configResponse.ok) {
+        showAlert("Failed to load payment configuration", "error");
+        return;
+      }
+      const configData = await configResponse.json();
+
+      // Step 2: Initialize payment with backend
+      const initResponse = await fetch(
+        "http://127.0.0.1:5000/api/payment/initialize",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            email: user.email,
+            amount: gateway === "paypal" ? 100 : 1000000, // $1.00 for PayPal, ₦1000 for Paystack
+            gateway: gateway,
+          }),
+        }
+      );
+
+      if (!initResponse.ok) {
+        const error = await initResponse.json();
+        showAlert(error.error || "Failed to initialize payment", "error");
+        return;
+      }
+
+      const initData = await initResponse.json();
+
+      if (!initData.status || !initData.data) {
+        showAlert("Failed to initialize payment", "error");
+        return;
+      }
+      console.log({ initData });
+      if (initData?.data?.authorization_url) {
+        // Redirect to authorization URL
+        window.location.href = initData.data.authorization_url;
+        // window.open(initData.data.authorization_url, "_blank");
+      }
+    } catch (error) {
+      console.error("Payment error:", error);
+      showAlert("Payment failed. Please try again.", "error");
+    }
+  };
+
+  // Handle premium upgrade
+  const handleUpgradeToPremium = async (
+    planType = "monthly",
+    gateway = "paystack"
+  ) => {
+    if (!user) return;
+
+    setShowUpgradeModal(false);
+    showAlert("Initializing premium upgrade...", "info");
+
+    try {
+      const token = localStorage.getItem("authToken");
+
+      // Step 1: Get payment config
+      const configResponse = await fetch(
+        "http://127.0.0.1:5000/api/payment/config"
+      );
+      if (!configResponse.ok) {
+        showAlert("Failed to load payment configuration", "error");
+        return;
+      }
+
+      // Step 2: Initialize subscription upgrade
+      const upgradeResponse = await fetch(
+        "http://127.0.0.1:5000/api/subscription/upgrade",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            plan_type: planType,
+            gateway: gateway,
+          }),
+        }
+      );
+
+      if (!upgradeResponse.ok) {
+        const error = await upgradeResponse.json();
+        showAlert(error.error || "Failed to initialize upgrade", "error");
+        return;
+      }
+
+      const upgradeData = await upgradeResponse.json();
+
+      if (upgradeData?.data?.authorization_url) {
+        // Redirect to Paystack payment page
+        window.location.href = upgradeData.data.authorization_url;
+      } else if (upgradeData?.data?.links) {
+        // PayPal response
+        const approvalLink = upgradeData.data.links.find(
+          (link) => link.rel === "approve"
+        );
+        if (approvalLink) {
+          window.location.href = approvalLink.href;
+        } else {
+          showAlert("Failed to initialize PayPal payment", "error");
+        }
+      } else {
+        showAlert("Failed to initialize payment", "error");
+      }
+    } catch (error) {
+      console.error("Upgrade error:", error);
+      showAlert("Failed to start upgrade process", "error");
+    }
+  };
+
+  // Verify PayPal payment
+  const verifyPayPalPayment = async (orderId, token) => {
+    console.log("Starting PayPal verification for orderId:", orderId);
+    try {
+      showAlert("Verifying PayPal payment...", "info");
+      console.log("Making API call to verify PayPal payment");
+      const response = await fetch(
+        `http://127.0.0.1:5000/api/payment/verify-paypal/${orderId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      console.log("PayPal verification response status:", response.status);
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("PayPal verification data:", data);
+        if (data.status && data.data && data.data.status === "success") {
+          showAlert(
+            "Payment successful! Your usage limit has been updated. Please click 'Analyze Resume' to continue with your analysis.",
+            "success"
+          );
+          localStorage.setItem("paymentSuccess", "true");
+          // Refresh usage info to reflect the payment
+          fetchUsageInfo();
+        } else {
+          console.error("PayPal verification failed:", data);
+          showAlert("PayPal payment verification failed", "error");
+        }
+      } else {
+        const errorText = await response.text();
+        console.error(
+          "PayPal verification failed with status:",
+          response.status,
+          errorText
+        );
+        showAlert("PayPal payment verification failed", "error");
+      }
+    } catch (error) {
+      console.error("PayPal verification error:", error);
+      showAlert("PayPal payment verification failed", "error");
+    }
+  };
+
+  // Manual payment verification
+  const handleManualVerifyPayment = async (reference, gateway) => {
+    const token = localStorage.getItem("authToken");
+    if (!token) {
+      showAlert("Authentication required for payment verification", "error");
+      return;
+    }
+
+    try {
+      showAlert("Verifying payment...", "info");
+      const response = await fetch(
+        `http://127.0.0.1:5000/api/payment/manual-verify/${reference}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ gateway }),
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.status && data.data && data.data.status === "success") {
+          showAlert("Payment verified successfully!", "success");
+          localStorage.setItem("paymentSuccess", "true");
+          await fetchUsageInfo();
+        } else {
+          showAlert("Payment verification failed", "error");
+        }
+      } else {
+        const error = await response.json();
+        showAlert(error.error || "Payment verification failed", "error");
+      }
+    } catch (error) {
+      console.error("Manual verification error:", error);
+      showAlert("Payment verification failed", "error");
+    }
+  };
+
   console.log({ results });
+
+  const handleVerifyPayment = async (reference) => {
+    console.log("Starting Paystack verification for reference:", reference);
+    const token = localStorage.getItem("authToken");
+    if (!token) {
+      console.error("No auth token for Paystack verification");
+      showAlert("Authentication required for payment verification", "error");
+      return;
+    }
+
+    try {
+      showAlert("Verifying payment...", "info");
+      console.log("Making API call to verify Paystack payment");
+      const verifyResponse = await fetch(
+        `http://127.0.0.1:5000/api/payment/verify/${reference}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      console.log(
+        "Paystack verification response status:",
+        verifyResponse.status,
+        { verifyResponse }
+      );
+
+      if (verifyResponse.ok) {
+        const verifyData = await verifyResponse.json();
+        console.log("Paystack verification data:", verifyData);
+        if (verifyData.status && verifyData.data.status === "success") {
+          showAlert(
+            "Payment successful! You can now run your analysis.",
+            "success"
+          );
+          localStorage.setItem("paymentSuccess", "true");
+          // Refresh usage data
+          await fetchUsageInfo();
+          // Proceed with analysis
+          // await performAnalysis();
+        } else {
+          console.error("Paystack verification failed:", verifyData);
+          showAlert("Payment verification failed", "error");
+        }
+      } else {
+        const errorText = await verifyResponse.text();
+        console.error(
+          "Paystack verification failed with status:",
+          verifyResponse.status,
+          errorText
+        );
+        showAlert("Payment verification failed", "error");
+      }
+    } catch (error) {
+      console.error("Paystack verification error:", error);
+      showAlert("Payment verification failed", "error");
+    }
+  };
+
+  const queryParams = new URLSearchParams(window.location.search);
+  const reference = queryParams?.get("trxref") || queryParams?.get("token");
+  const gateway = queryParams?.get("gateway") || "paystack";
+
+  useEffect(() => {
+    const verifyPayment = async () => {
+      try {
+        const token = localStorage.getItem("authToken");
+        if (!token) {
+          console.error("No auth token found for payment verification");
+          window.location.href = "/";
+          return;
+        }
+
+        let response;
+        if (gateway === "paypal") {
+          response = await fetch(
+            `http://127.0.0.1:5000/api/payment/verify-paypal/${reference}`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            }
+          );
+        } else {
+          response = await fetch(
+            `http://127.0.0.1:5000/api/payment/verify/${reference}`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            }
+          );
+        }
+        const data = await response.json();
+        console.log("Payment verification response:", data);
+
+        if (
+          (gateway === "paypal" && data.status) ||
+          (gateway === "paystack" &&
+            data.status &&
+            data.data &&
+            data.data.status === "success")
+        ) {
+          // Payment successful
+          localStorage.setItem("paymentSuccess", "true");
+        }
+
+        // Redirect to home regardless of payment status
+        window.location.href = "/";
+      } catch (error) {
+        console.error("Error verifying payment:", error);
+        window.location.href = "/";
+      }
+    };
+
+    if (reference) {
+      verifyPayment();
+    }
+  }, [reference, gateway]);
+
+  console.log({ reference });
 
   return (
     <div style={styles.container}>
-      <h1 style={styles.header}>Resume Matcher (AI-Powered ATS)</h1>
-      <p style={styles.subHeader}>
-        Upload your CV and paste the job requirements below for an instant score
-        and tailored recommendations.
-      </p>
+      {/* Header with Avatar */}
+      <div style={styles.headerContainer}>
+        <div style={styles.headerLeft}>
+          <h1 style={styles.header}>Resume Matcher (AI-Powered ATS)</h1>
+          <p style={styles.subHeader}>
+            Upload your CV and paste the job requirements below for an instant
+            score and tailored recommendations.
+          </p>
+          <Link to="/recruiters">
+            <button style={styles.recruiterButton}>Recruiters Tool</button>
+          </Link>
+        </div>
+        {isAuthenticated && user && (
+          <div style={styles.avatarContainer}>
+            <UserAvatar user={user} onLogout={handleLogout} />
+          </div>
+        )}
+      </div>
+
+      {/* Usage Status for authenticated users */}
+      {isAuthenticated && (
+        <UsageStatus
+          usageInfo={usageInfo}
+          user={user}
+          loading={loadingUsage}
+          onUpgradeClick={() => {
+            setUpgradeModalData(usageInfo);
+            setShowUpgradeModal(true);
+          }}
+        />
+      )}
+
+      {/* Manual Payment Verification */}
+      {showManualVerify && (
+        <div
+          style={{
+            backgroundColor: "#fff3cd",
+            border: "1px solid #ffeaa7",
+            borderRadius: "8px",
+            padding: "16px",
+            marginBottom: "20px",
+            textAlign: "center",
+          }}
+        >
+          <h3 style={{ color: "#856404", margin: "0 0 8px 0" }}>
+            Payment Verification Needed
+          </h3>
+          <p style={{ color: "#856404", margin: "0 0 12px 0" }}>
+            We detected a payment completion. Please verify your payment to
+            update your usage limits.
+          </p>
+          <div
+            style={{ display: "flex", gap: "8px", justifyContent: "center" }}
+          >
+            <input
+              type="text"
+              placeholder="Payment reference"
+              value={manualVerifyRef}
+              onChange={(e) => setManualVerifyRef(e.target.value)}
+              style={{
+                padding: "8px",
+                border: "1px solid #ddd",
+                borderRadius: "4px",
+                width: "200px",
+              }}
+            />
+            <select
+              value={manualVerifyGateway}
+              onChange={(e) => setManualVerifyGateway(e.target.value)}
+              style={{
+                padding: "8px",
+                border: "1px solid #ddd",
+                borderRadius: "4px",
+              }}
+            >
+              <option value="paystack">Paystack</option>
+              <option value="paypal">PayPal</option>
+            </select>
+            <button
+              onClick={async () => {
+                await handleManualVerifyPayment(
+                  manualVerifyRef,
+                  manualVerifyGateway
+                );
+                setShowManualVerify(false);
+              }}
+              style={{
+                padding: "8px 16px",
+                backgroundColor: "#007bff",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                cursor: "pointer",
+              }}
+            >
+              Verify Payment
+            </button>
+            <button
+              onClick={() => setShowManualVerify(false)}
+              style={{
+                padding: "8px 16px",
+                backgroundColor: "#6c757d",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                cursor: "pointer",
+              }}
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* --- INPUT FORM --- */}
       <form onSubmit={handleSubmission} style={styles.inputSection}>
@@ -719,6 +1433,22 @@ const ATSMatcher = () => {
         onClose={closeAlert}
         type={alertModal.type}
       />
+
+      {/* Login Modal */}
+      <LoginModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        onLogin={handleLogin}
+      />
+
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        onPayAsYouGo={handlePayAsYouGo}
+        onUpgradeToPremium={handleUpgradeToPremium}
+        modalData={upgradeModalData}
+      />
     </div>
   );
 };
@@ -773,15 +1503,37 @@ const styles = {
     boxShadow: "0 6px 12px rgba(0,0,0,0.15)",
     textAlign: "left",
   },
+  headerContainer: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: "30px",
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  avatarContainer: {
+    marginLeft: "20px",
+  },
   header: {
-    textAlign: "center",
+    textAlign: "left",
     color: "#1a73e8",
     marginBottom: "5px",
   },
   subHeader: {
-    textAlign: "center",
+    textAlign: "left",
     color: "#5f6368",
-    marginBottom: "30px",
+    marginBottom: "10px",
+  },
+  recruiterButton: {
+    backgroundColor: "#34a853",
+    color: "white",
+    border: "none",
+    padding: "8px 16px",
+    borderRadius: "4px",
+    cursor: "pointer",
+    fontSize: "14px",
+    marginTop: "10px",
   },
   inputSection: {
     width: "100%",
