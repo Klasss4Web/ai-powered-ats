@@ -1578,6 +1578,98 @@ def generate_standard_resume():
         return jsonify({"error": f"Failed to generate standard resume: {e}"}), 500
 
 
+@app.route('/api/batch-match', methods=['POST'])
+@token_required
+def process_batch_match():
+    """API endpoint to receive multiple resumes and JD, process with Gemini, and return batch results."""
+
+    # Check if user is premium
+    if g.user['subscription_type'] != 'premium':
+        return jsonify({"error": "This feature is available for premium subscribers only.", "upgrade_required": True}), 403
+
+    if not model:
+        return jsonify({"error": "Gemini API model is not available. Check server logs."}), 500
+
+    # Ensure all required data is present
+    if 'resumes' not in request.files or 'job_description' not in request.form:
+        return jsonify({"error": "Missing resume files or job description in the request."}), 400
+
+    job_description = request.form['job_description']
+    resume_files = request.files.getlist('resumes')
+
+    if len(resume_files) > 10:
+        return jsonify({"error": "Maximum 10 resumes allowed for batch processing."}), 400
+
+    if len(resume_files) == 0:
+        return jsonify({"error": "No resume files provided."}), 400
+
+    results = []
+
+    for resume_file in resume_files:
+        # Check usage limits for each resume
+        can_use, usage_message = check_usage_limit(g.user_id, 'analysis')
+        if not can_use:
+            return jsonify({
+                "error": f"Usage limit reached for resume {resume_file.filename}: {usage_message}",
+                "upgrade_required": True
+            }), 429
+
+        # Extract text
+        resume_text = extract_text_from_pdf(resume_file.stream)
+
+        if not resume_text or len(resume_text.strip()) < 50:
+            results.append({
+                "filename": resume_file.filename,
+                "error": "Could not extract sufficient text from the PDF file."
+            })
+            continue
+
+        # Construct the Prompt for Gemini (simplified for batch)
+        prompt = f"""
+        You are an expert Applicant Tracking System (ATS) Analyst. Compare RESUME against JOB DESCRIPTION.
+
+        --- RESUME TEXT ---
+        {resume_text}
+
+        --- JOB DESCRIPTION TEXT ---
+        {job_description}
+
+        Provide scores only in JSON format:
+
+        {{
+            "keyword_match_score": <0-100>,
+            "skills_alignment_score": <0-100>,
+            "experience_relevance_score": <0-100>,
+            "formatting_structure_score": <0-100>,
+            "seniority_fit_score": <0-100>,
+            "overall_match_score": <0-100>
+        }}
+        """
+
+        try:
+            response = model.generate_content(prompt)
+            response_text = response.text.strip()
+
+            # Parse JSON
+            scores = json.loads(response_text)
+
+            # Record usage
+            record_usage(g.user_id, 'analysis', json.dumps({"filename": resume_file.filename}))
+
+            results.append({
+                "filename": resume_file.filename,
+                "scores": scores
+            })
+
+        except Exception as e:
+            results.append({
+                "filename": resume_file.filename,
+                "error": f"Analysis failed: {str(e)}"
+            })
+
+    return jsonify({"results": results})
+
+
 if __name__ == '__main__':
     # Initialize the database
     init_db()

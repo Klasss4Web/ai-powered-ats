@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 
 import AlertModal from "../components/AlertModal";
 import UserAvatar from "../components/UserAvatar";
@@ -809,6 +810,9 @@ const ATSMatcher = () => {
             Upload your CV and paste the job requirements below for an instant
             score and tailored recommendations.
           </p>
+          <Link to="/recruiters">
+            <button style={styles.recruiterButton}>Recruiters Tool</button>
+          </Link>
         </div>
         {isAuthenticated && user && (
           <div style={styles.avatarContainer}>
@@ -1519,7 +1523,17 @@ const styles = {
   subHeader: {
     textAlign: "left",
     color: "#5f6368",
-    marginBottom: "0",
+    marginBottom: "10px",
+  },
+  recruiterButton: {
+    backgroundColor: "#34a853",
+    color: "white",
+    border: "none",
+    padding: "8px 16px",
+    borderRadius: "4px",
+    cursor: "pointer",
+    fontSize: "14px",
+    marginTop: "10px",
   },
   inputSection: {
     width: "100%",
