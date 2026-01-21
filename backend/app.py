@@ -145,13 +145,38 @@ def verify_token(token):
     except jwt.InvalidTokenError:
         return None
 
+# def token_required(f):
+#     """Decorator to require authentication token."""
+#     @wraps(f)
+#     def decorated_function(*args, **kwargs):
+#         token = None
+
+#         # Get token from header
+#         if 'Authorization' in request.headers:
+#             auth_header = request.headers['Authorization']
+#             if auth_header.startswith('Bearer '):
+#                 token = auth_header.split(' ')[1]
+
+#         if not token:
+#             return jsonify({'error': 'Token is missing'}), 401
+
+#         payload = verify_token(token)
+#         if not payload:
+#             return jsonify({'error': 'Token is invalid or expired'}), 401
+
+#         # Add user info to request
+#         g.user_id = payload['user_id']
+#         g.user_email = payload['email']
+
+#         return f(*args, **kwargs)
+#     return decorated_function
+
 def token_required(f):
     """Decorator to require authentication token."""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         token = None
 
-        # Get token from header
         if 'Authorization' in request.headers:
             auth_header = request.headers['Authorization']
             if auth_header.startswith('Bearer '):
@@ -164,12 +189,33 @@ def token_required(f):
         if not payload:
             return jsonify({'error': 'Token is invalid or expired'}), 401
 
-        # Add user info to request
-        g.user_id = payload['user_id']
-        g.user_email = payload['email']
+        user_id = payload.get('user_id')
+
+        # 🔒 HARD VALIDATION
+        try:
+            user_id = int(user_id)
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Invalid token payload'}), 401
+
+        db = get_db()
+        cursor = db.cursor()
+        cursor.execute(
+            'SELECT * FROM users WHERE id = ?',
+            (user_id,)
+        )
+        user = cursor.fetchone()
+
+        if user is None:
+            return jsonify({'error': 'User not found'}), 401
+
+        g.user = dict(user)
+        g.user_id = user['id']
+        g.user_email = user['email']
 
         return f(*args, **kwargs)
+
     return decorated_function
+
 
 def check_usage_limit(user_id, action_type='analysis'):
     """Check if user has exceeded their daily usage limit."""

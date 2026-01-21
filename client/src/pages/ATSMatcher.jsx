@@ -14,7 +14,7 @@ const ATSMatcher = () => {
   const pendingAnalysis = localStorage.getItem("pendingAnalysis");
   const [resumeFile, setResumeFile] = useState(null);
   const [jobDescription, setJobDescription] = useState(
-    pendingAnalysis ? JSON.parse(pendingAnalysis).jobDescription : ""
+    pendingAnalysis ? JSON.parse(pendingAnalysis).jobDescription : "",
   );
   const [results, setResults] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -67,7 +67,7 @@ const ATSMatcher = () => {
               headers: {
                 Authorization: `Bearer ${token}`,
               },
-            }
+            },
           );
 
           if (response.ok) {
@@ -90,7 +90,7 @@ const ATSMatcher = () => {
             if (paymentSuccess === "true") {
               showAlert(
                 "Payment successful! Your usage limit has been updated. Please click 'Analyze Resume' to continue with your analysis.",
-                "success"
+                "success",
               );
               // Refresh usage info to reflect the payment
               fetchUsageInfo();
@@ -133,13 +133,13 @@ const ATSMatcher = () => {
         window.history.replaceState(
           {},
           document.title,
-          window.location.pathname
+          window.location.pathname,
         );
 
         const token = localStorage.getItem("authToken");
         if (!token) {
           console.log(
-            "No auth token found for payment verification - showing manual verify option"
+            "No auth token found for payment verification - showing manual verify option",
           );
           // Show manual verification option
           if (paypalToken && payerId) {
@@ -391,7 +391,7 @@ const ATSMatcher = () => {
 
           body: formData,
         },
-        10000
+        100000,
       );
 
       const data = await response.json();
@@ -416,7 +416,7 @@ const ATSMatcher = () => {
         window.scrollTo(0, document.documentElement.scrollHeight);
       });
       setResults(data);
-      setResumeFile(null);
+      // setResumeFile(null);
       setJobDescription("");
       setOriginalResumeText(data.original_resume_text || "");
 
@@ -468,7 +468,7 @@ const ATSMatcher = () => {
         let filename = "optimized_cv";
         if (contentDisp) {
           const fileMatch = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(
-            contentDisp
+            contentDisp,
           );
           if (fileMatch && fileMatch[1]) {
             filename = decodeURIComponent(fileMatch[1]);
@@ -518,7 +518,7 @@ const ATSMatcher = () => {
           body: JSON.stringify({
             resume_text: originalResumeText,
           }),
-        }
+        },
       );
 
       if (response.ok) {
@@ -554,7 +554,7 @@ const ATSMatcher = () => {
 
       // Step 1: Get Paystack public key
       const configResponse = await fetch(
-        "http://127.0.0.1:5000/api/payment/config"
+        "http://127.0.0.1:5000/api/payment/config",
       );
       if (!configResponse.ok) {
         showAlert("Failed to load payment configuration", "error");
@@ -576,7 +576,7 @@ const ATSMatcher = () => {
             amount: gateway === "paypal" ? 100 : 1000000, // $1.00 for PayPal, ₦1000 for Paystack
             gateway: gateway,
           }),
-        }
+        },
       );
 
       if (!initResponse.ok) {
@@ -606,7 +606,7 @@ const ATSMatcher = () => {
   // Handle premium upgrade
   const handleUpgradeToPremium = async (
     planType = "monthly",
-    gateway = "paystack"
+    gateway = "paystack",
   ) => {
     if (!user) return;
 
@@ -618,7 +618,7 @@ const ATSMatcher = () => {
 
       // Step 1: Get payment config
       const configResponse = await fetch(
-        "http://127.0.0.1:5000/api/payment/config"
+        "http://127.0.0.1:5000/api/payment/config",
       );
       if (!configResponse.ok) {
         showAlert("Failed to load payment configuration", "error");
@@ -638,7 +638,7 @@ const ATSMatcher = () => {
             plan_type: planType,
             gateway: gateway,
           }),
-        }
+        },
       );
 
       if (!upgradeResponse.ok) {
@@ -655,7 +655,7 @@ const ATSMatcher = () => {
       } else if (upgradeData?.data?.links) {
         // PayPal response
         const approvalLink = upgradeData.data.links.find(
-          (link) => link.rel === "approve"
+          (link) => link.rel === "approve",
         );
         if (approvalLink) {
           window.location.href = approvalLink.href;
@@ -683,7 +683,7 @@ const ATSMatcher = () => {
           headers: {
             Authorization: `Bearer ${token}`,
           },
-        }
+        },
       );
       console.log("PayPal verification response status:", response.status);
 
@@ -693,7 +693,7 @@ const ATSMatcher = () => {
         if (data.status && data.data && data.data.status === "success") {
           showAlert(
             "Payment successful! Your usage limit has been updated. Please click 'Analyze Resume' to continue with your analysis.",
-            "success"
+            "success",
           );
           localStorage.setItem("paymentSuccess", "true");
           // Refresh usage info to reflect the payment
@@ -707,7 +707,7 @@ const ATSMatcher = () => {
         console.error(
           "PayPal verification failed with status:",
           response.status,
-          errorText
+          errorText,
         );
         showAlert("PayPal payment verification failed", "error");
       }
@@ -736,7 +736,7 @@ const ATSMatcher = () => {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({ gateway }),
-        }
+        },
       );
 
       if (response.ok) {
@@ -779,12 +779,12 @@ const ATSMatcher = () => {
           headers: {
             Authorization: `Bearer ${token}`,
           },
-        }
+        },
       );
       console.log(
         "Paystack verification response status:",
         verifyResponse.status,
-        { verifyResponse }
+        { verifyResponse },
       );
 
       if (verifyResponse.ok) {
@@ -793,7 +793,7 @@ const ATSMatcher = () => {
         if (verifyData.status && verifyData.data.status === "success") {
           showAlert(
             "Payment successful! You can now run your analysis.",
-            "success"
+            "success",
           );
           localStorage.setItem("paymentSuccess", "true");
           // Refresh usage data
@@ -809,7 +809,7 @@ const ATSMatcher = () => {
         console.error(
           "Paystack verification failed with status:",
           verifyResponse.status,
-          errorText
+          errorText,
         );
         showAlert("Payment verification failed", "error");
       }
@@ -841,7 +841,7 @@ const ATSMatcher = () => {
               headers: {
                 Authorization: `Bearer ${token}`,
               },
-            }
+            },
           );
         } else {
           response = await fetch(
@@ -850,7 +850,7 @@ const ATSMatcher = () => {
               headers: {
                 Authorization: `Bearer ${token}`,
               },
-            }
+            },
           );
         }
         const data = await response.json();
@@ -966,7 +966,7 @@ const ATSMatcher = () => {
               onClick={async () => {
                 await handleManualVerifyPayment(
                   manualVerifyRef,
-                  manualVerifyGateway
+                  manualVerifyGateway,
                 );
                 setShowManualVerify(false);
               }}
@@ -1252,7 +1252,7 @@ const ATSMatcher = () => {
                               → Add to: <em>{section}</em>
                             </p>
                           </div>
-                        )
+                        ),
                       )}
                     </div>
                   </div>
@@ -1308,7 +1308,7 @@ const ATSMatcher = () => {
                           <li key={index} style={styles.suggestionItem}>
                             {suggestion}
                           </li>
-                        )
+                        ),
                       )}
                     </ul>
                   </div>
@@ -1516,7 +1516,7 @@ const ATSMatcher = () => {
                               → Add to: <em>{section}</em>
                             </p>
                           </div>
-                        )
+                        ),
                       )}
                     </div>
                   </section>
@@ -1578,7 +1578,7 @@ const ATSMatcher = () => {
                           <li key={index} style={styles.suggestionItem}>
                             {suggestion}
                           </li>
-                        )
+                        ),
                       )}
                     </ul>
                   </section>
