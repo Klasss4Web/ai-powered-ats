@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 
 const ResetPasswordPage = () => {
@@ -41,7 +41,7 @@ const ResetPasswordPage = () => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ token, new_password: password }),
-        }
+        },
       );
 
       const data = await response.json();
@@ -51,7 +51,7 @@ const ResetPasswordPage = () => {
       }
 
       setMessage(
-        "Password reset successfully! You can now login with your new password."
+        "Password reset successfully! You can now login with your new password.",
       );
 
       // Clear form
@@ -60,7 +60,7 @@ const ResetPasswordPage = () => {
     } catch (error) {
       console.error("Reset password error:", error);
       setMessage(
-        error.message || "Failed to reset password. Please try again."
+        error.message || "Failed to reset password. Please try again.",
       );
     } finally {
       setIsLoading(false);

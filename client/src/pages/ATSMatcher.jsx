@@ -8,6 +8,7 @@ import UpgradeModal from "../components/UpgradeModal";
 import LoginModal from "../components/auth/LoginModal";
 import AnimatedLoader from "../components/loaders/animated-loader/AnimatedLoader";
 import fetchWithTimeout from "../configs/fetch";
+import { AUTH_CONSTANTS } from "../constants/auth_constants";
 
 const ATSMatcher = () => {
   const showOtherFeatures = false; // Toggle to show/hide extended features
@@ -57,7 +58,7 @@ const ATSMatcher = () => {
   // Check authentication on app load
   useEffect(() => {
     const checkAuth = async () => {
-      const token = localStorage.getItem("authToken");
+      const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
       if (token) {
         try {
           const response = await fetch(
@@ -98,7 +99,7 @@ const ATSMatcher = () => {
               // localStorage.removeItem("paymentSuccess");
             }
           } else {
-            localStorage.removeItem("authToken");
+            localStorage.removeItem(AUTH_CONSTANTS.TOKEN_KEY);
           }
         } catch (error) {
           console.error("Auth verification error:", error);
@@ -136,7 +137,7 @@ const ATSMatcher = () => {
           window.location.pathname,
         );
 
-        const token = localStorage.getItem("authToken");
+        const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
         if (!token) {
           console.log(
             "No auth token found for payment verification - showing manual verify option",
@@ -184,7 +185,7 @@ const ATSMatcher = () => {
 
   // Fetch usage information
   const fetchUsageInfo = async () => {
-    const token = localStorage.getItem("authToken");
+    const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
     if (!token) return;
 
     setLoadingUsage(true);
@@ -209,7 +210,7 @@ const ATSMatcher = () => {
 
   // Fetch saved resumes
   const fetchSavedResumes = async () => {
-    const token = localStorage.getItem("authToken");
+    const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
     if (!token) return;
 
     try {
@@ -235,7 +236,7 @@ const ATSMatcher = () => {
       return;
     }
 
-    const token = localStorage.getItem("authToken");
+    const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
     const formData = new FormData();
     formData.append("resume", resumeFile);
 
@@ -297,7 +298,7 @@ const ATSMatcher = () => {
 
   const handleLogout = async () => {
     try {
-      const token = localStorage.getItem("authToken");
+      const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
       if (token) {
         await fetch("http://127.0.0.1:5000/api/auth/logout", {
           method: "POST",
@@ -310,7 +311,7 @@ const ATSMatcher = () => {
       console.error("Logout error:", error);
     } finally {
       // Always clear local state and token
-      localStorage.removeItem("authToken");
+      localStorage.removeItem(AUTH_CONSTANTS.TOKEN_KEY);
       setUser(null);
       setIsAuthenticated(false);
       setResults(null);
@@ -375,7 +376,7 @@ const ATSMatcher = () => {
     formData.append("job_description", jobDescription);
 
     try {
-      // const token = localStorage.getItem("authToken");
+      // const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
       // const response = await fetch("http://127.0.0.1:5000/api/match", {
       //   method: "POST",
       //   headers: {
@@ -422,6 +423,7 @@ const ATSMatcher = () => {
 
       // Clear payment success flag after successful analysis
       localStorage.removeItem("paymentSuccess");
+      localStorage.removeItem("pendingAnalysis");
 
       // Refresh usage info after successful analysis
       fetchUsageInfo();
@@ -442,7 +444,7 @@ const ATSMatcher = () => {
 
     setDownloadingOptimized(true);
     try {
-      const token = localStorage.getItem("authToken");
+      const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
       const response = await fetch("http://127.0.0.1:5000/api/generate-cv", {
         method: "POST",
         headers: {
@@ -506,7 +508,7 @@ const ATSMatcher = () => {
 
     setDownloadingStandard(true);
     try {
-      const token = localStorage.getItem("authToken");
+      const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
       const response = await fetch(
         "http://127.0.0.1:5000/api/generate-standard-resume",
         {
@@ -550,7 +552,7 @@ const ATSMatcher = () => {
     showAlert("Initializing payment...", "info");
 
     try {
-      const token = localStorage.getItem("authToken");
+      const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
 
       // Step 1: Get Paystack public key
       const configResponse = await fetch(
@@ -614,7 +616,7 @@ const ATSMatcher = () => {
     showAlert("Initializing premium upgrade...", "info");
 
     try {
-      const token = localStorage.getItem("authToken");
+      const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
 
       // Step 1: Get payment config
       const configResponse = await fetch(
@@ -719,7 +721,7 @@ const ATSMatcher = () => {
 
   // Manual payment verification
   const handleManualVerifyPayment = async (reference, gateway) => {
-    const token = localStorage.getItem("authToken");
+    const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
     if (!token) {
       showAlert("Authentication required for payment verification", "error");
       return;
@@ -762,7 +764,7 @@ const ATSMatcher = () => {
 
   const handleVerifyPayment = async (reference) => {
     console.log("Starting Paystack verification for reference:", reference);
-    const token = localStorage.getItem("authToken");
+    const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
     if (!token) {
       console.error("No auth token for Paystack verification");
       showAlert("Authentication required for payment verification", "error");
@@ -826,7 +828,7 @@ const ATSMatcher = () => {
   useEffect(() => {
     const verifyPayment = async () => {
       try {
-        const token = localStorage.getItem("authToken");
+        const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
         if (!token) {
           console.error("No auth token found for payment verification");
           window.location.href = "/";
