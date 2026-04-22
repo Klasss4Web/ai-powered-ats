@@ -1,15 +1,490 @@
-#root {
-  width: 100%;
+.app-shell {
+  min-height: 100vh;
+  background:
+    radial-gradient(
+      circle at top left,
+      rgba(56, 189, 248, 0.18),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at bottom right,
+      rgba(168, 85, 247, 0.14),
+      transparent 30%
+    ),
+    linear-gradient(180deg, #0f172a 0%, #020617 100%);
+  color: #e2e8f0;
+}
+
+.nav-shell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 2rem;
+  gap: 1rem;
+  background: rgba(15, 23, 42, 0.9);
+  backdrop-filter: blur(18px);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.nav-brand {
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: #fff;
+  font-size: 1.15rem;
+}
+
+.nav-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.nav-link {
+  color: #cbd5e1;
+  padding: 0.65rem 1rem;
+  border-radius: 999px;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.nav-link:hover,
+.nav-link.active {
+  background: rgba(148, 163, 184, 0.14);
+  color: #fff;
+}
+
+.nav-primary {
+  background: #38bdf8;
+  color: #020617;
+}
+
+.nav-primary:hover {
+  filter: brightness(1.05);
+}
+
+.page-shell {
+  width: min(1280px, 100%);
   margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+.hero-panel,
+.page-hero {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 2rem;
+  align-items: center;
+  margin-bottom: 2.5rem;
+}
+
+.compact-hero {
   padding: 2rem;
-  text-align: center;
-  background-color: #a1a1a1;
+  border-radius: 24px;
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(148, 163, 184, 0.12);
 }
 
-.card {
-  padding: 2em;
+.hero-copy {
+  padding: 2rem;
+  border-radius: 24px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(148, 163, 184, 0.12);
 }
 
-.read-the-docs {
-  color: #888;
+.hero-badge,
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.95rem;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.18);
+  color: #7dd3fc;
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+}
+
+.hero-title,
+.page-hero h1 {
+  margin: 0;
+  font-size: clamp(2.2rem, 4vw, 3rem);
+  line-height: 1.03;
+  letter-spacing: -0.04em;
+  color: #d4d4d4;
+}
+
+.hero-description,
+.page-hero p {
+  max-width: 60ch;
+  color: #cbd5e1;
+  margin: 1rem 0 1.5rem;
+  line-height: 1.8;
+}
+
+.hero-actions,
+.quick-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.primary-btn,
+.secondary-btn {
+  border: none;
+  cursor: pointer;
+  border-radius: 999px;
+  padding: 0.5rem 1.6rem;
+  font-weight: 700;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.primary-btn {
+  background: linear-gradient(135deg, #38bdf8, #8b5cf6);
+  color: #020617;
+  box-shadow: 0 18px 40px rgba(56, 189, 248, 0.18);
+}
+
+.secondary-btn {
+  background: rgba(148, 163, 184, 0.15);
+  color: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.primary-btn:hover,
+.secondary-btn:hover {
+  transform: translateY(-1px);
+}
+
+.glass-card {
+  padding: 1.75rem;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 24px;
+  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.22);
+}
+
+.hero-visual {
+  position: relative;
+  min-height: 360px;
+  display: grid;
+  gap: 1rem;
+}
+
+.hero-card {
+  padding: 1.5rem;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.secondary-card {
+  display: grid;
+  gap: 1rem;
+}
+
+.hero-card-header {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #f1f5f9;
+  margin-bottom: 1rem;
+}
+
+.hero-card-body {
+  display: flex;
+  gap: 1rem;
+  align-items: end;
+}
+
+.hero-metric {
+  font-size: 3rem;
+  font-weight: 800;
+  color: #fff;
+}
+
+.hero-subtitle {
+  color: #cbd5e1;
+}
+
+.hero-wave {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 130px;
+  background: radial-gradient(
+    circle at center,
+    rgba(56, 189, 248, 0.18),
+    transparent 55%
+  );
+}
+
+.feature-grid,
+.insight-grid,
+.summary-grid,
+.subscription-grid {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.feature-grid,
+.insight-grid {
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  margin-bottom: 2rem;
+}
+
+.summary-grid,
+.subscription-grid {
+  grid-template-columns: repeat(3, minmax(240px, 1fr));
+}
+
+.feature-card,
+.insight-card,
+.plan-card,
+.summary-card {
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 24px;
+  padding: 1.5rem;
+}
+
+.feature-card h3,
+.insight-card h3,
+.plan-card h2,
+.summary-card span {
+  margin: 0 0 0.75rem;
+}
+
+.feature-card p,
+.insight-card p,
+.summary-card p {
+  color: #cbd5e1;
+  line-height: 1.7;
+}
+
+.large-card {
+  margin-bottom: 2rem;
+}
+
+.summary-header,
+.table-panel-header,
+.payment-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin: 1.5rem 0 0.5rem 0;
+  gap: 1rem;
+}
+
+.summary-tile,
+.plan-card,
+.summary-card,
+.payment-panel {
+  color: #e2e8f0;
+}
+
+.summary-tile {
+  padding: 1.5rem;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 20px;
+}
+
+.summary-tile span,
+.plan-card span,
+.summary-card span {
+  color: #cbd5e1;
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.summary-tile strong,
+.summary-card strong {
+  display: block;
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.resume-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.resume-card {
+  padding: 1rem;
+  border-radius: 18px;
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.empty-state {
+  padding: 1.5rem;
+  color: #cbd5e1;
+  background: rgba(15, 23, 42, 0.7);
+  border-radius: 18px;
+}
+
+.invite-panel,
+.payment-panel,
+.insight-section,
+.dashboard-summary,
+.plan-card,
+.subscription-grid {
+  margin-bottom: 2rem;
+}
+
+.invite-panel,
+.payment-panel,
+.dashboard-summary {
+  padding: 2rem;
+}
+
+.payment-panel {
+  border-radius: 24px;
+}
+
+.payment-panel-header {
+  gap: 1rem;
+}
+
+.gateway-buttons {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.payment-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(160px, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.payment-summary strong {
+  display: block;
+  margin-bottom: 0.4rem;
+}
+
+.payment-note {
+  color: #cbd5e1;
+  margin-top: 1rem;
+  max-width: 48rem;
+}
+
+.upgrade-btn {
+  width: 100%;
+}
+
+.plan-tag {
+  display: inline-flex;
+  padding: 0.4rem 0.8rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: #dbeafe;
+  background: rgba(56, 189, 248, 0.16);
+  margin-bottom: 1rem;
+}
+
+.plan-tag-alt {
+  background: rgba(16, 185, 129, 0.16);
+}
+
+.plan-price {
+  font-size: 2rem;
+  font-weight: 800;
+  margin: 1rem 0;
+}
+
+.subscription-details {
+  margin: 2rem 0;
+  padding: 1.5rem;
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid rgba(100, 116, 139, 0.2);
+  border-radius: 20px;
+}
+
+.detail-section h3 {
+  margin: 0 0 1rem;
+  color: #fff;
+  font-size: 1.1rem;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1rem;
+}
+
+.detail-item {
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.7);
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.detail-item span {
+  display: block;
+  color: #cbd5e1;
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.detail-item strong {
+  display: block;
+  color: #f1f5f9;
+  font-size: 1.5rem;
+  font-weight: 800;
+}
+
+.premium-plan {
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+.insight-section {
+  padding: 2rem 0;
+}
+
+.insight-copy {
+  margin-bottom: 1.5rem;
+}
+
+@media (max-width: 1024px) {
+  .hero-panel,
+  .page-hero,
+  .summary-grid,
+  .feature-grid,
+  .insight-grid,
+  .subscription-grid,
+  .payment-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .nav-shell {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+@media (max-width: 640px) {
+  .page-shell {
+    padding: 1.25rem 1rem 3rem;
+  }
+
+  .primary-btn,
+  .secondary-btn {
+    width: 100%;
+    justify-content: center;
+  }
 }

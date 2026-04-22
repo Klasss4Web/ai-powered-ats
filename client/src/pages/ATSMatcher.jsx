@@ -1730,6 +1730,7 @@ const styles = {
   inputGroup: {
     marginBottom: "20px",
     width: "100%",
+    color: "#202124",
   },
   fileInput: {
     padding: "20px",
@@ -1748,6 +1749,8 @@ const styles = {
     borderRadius: "4px",
     resize: "vertical",
     fontSize: "1em",
+    backgroundColor: "#f9f9f9",
+    color: "#202124",
   },
   submitButton: {
     width: "100%",

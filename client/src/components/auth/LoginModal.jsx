@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AUTH_CONSTANTS } from "../../constants/auth_constants";
 
 const LoginModal = ({ isOpen, onClose, onLogin }) => {
   const [email, setEmail] = useState("");
@@ -61,19 +62,19 @@ const LoginModal = ({ isOpen, onClose, onLogin }) => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify(body),
-        }
+        },
       );
 
       const data = await response.json();
 
       if (!response.ok) {
         throw new Error(
-          data.error || `${isRegister ? "Registration" : "Login"} failed`
+          data.error || `${isRegister ? "Registration" : "Login"} failed`,
         );
       }
 
       // Store the token
-      localStorage.setItem("authToken", data.token);
+      localStorage.setItem(AUTH_CONSTANTS.TOKEN_KEY, data.token);
 
       // Show success message
       if (window.showToast) {
@@ -138,7 +139,7 @@ const LoginModal = ({ isOpen, onClose, onLogin }) => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ email: forgotEmail }),
-        }
+        },
       );
 
       const data = await response.json();
@@ -151,7 +152,7 @@ const LoginModal = ({ isOpen, onClose, onLogin }) => {
       if (window.showToast) {
         window.showToast(
           "If an account with that email exists, a password reset link has been sent.",
-          "success"
+          "success",
         );
       }
 
@@ -384,8 +385,8 @@ const LoginModal = ({ isOpen, onClose, onLogin }) => {
                 ? "Creating Account..."
                 : "Logging in..."
               : isRegister
-              ? "Create Account"
-              : "Login"}
+                ? "Create Account"
+                : "Login"}
           </button>
         </form>
 

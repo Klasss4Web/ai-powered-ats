@@ -1,8 +1,9 @@
 import { useEffect } from "react";
 import { useParams } from "react-router-dom";
 import AnimatedLoader from "../components/loaders/animated-loader/AnimatedLoader";
+import { AUTH_CONSTANTS } from "../constants/auth_constants";
 
-export const VerifyPaymentPage = () => {
+const VerifyPaymentPage = () => {
   const params = useParams();
   const queryParams = new URLSearchParams(window.location.search);
   const reference = queryParams?.get("trxref") || queryParams?.get("token");
@@ -11,7 +12,7 @@ export const VerifyPaymentPage = () => {
   useEffect(() => {
     const verifyPayment = async () => {
       try {
-        const token = localStorage.getItem("authToken");
+        const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
         if (!token) {
           console.error("No auth token found for payment verification");
           window.location.href = "/";
@@ -26,7 +27,7 @@ export const VerifyPaymentPage = () => {
               headers: {
                 Authorization: `Bearer ${token}`,
               },
-            }
+            },
           );
         } else {
           response = await fetch(
@@ -35,7 +36,7 @@ export const VerifyPaymentPage = () => {
               headers: {
                 Authorization: `Bearer ${token}`,
               },
-            }
+            },
           );
         }
         const data = await response.json();
@@ -70,3 +71,5 @@ export const VerifyPaymentPage = () => {
     </div>
   );
 };
+
+export default VerifyPaymentPage;

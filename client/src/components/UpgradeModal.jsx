@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AUTH_CONSTANTS } from "../constants/auth_constants";
 
 const UpgradeModal = ({
   isOpen,
@@ -38,7 +39,7 @@ const UpgradeModal = ({
 
     setLoadingManual(true);
     try {
-      const token = localStorage.getItem("authToken");
+      const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
       const response = await fetch(
         `http://127.0.0.1:5000/api/payment/manual-verify/${manualReference}`,
         {
@@ -48,13 +49,13 @@ const UpgradeModal = ({
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({ gateway: manualGateway }),
-        }
+        },
       );
 
       if (response.ok) {
         const data = await response.json();
         alert(
-          "Payment verified successfully! Your usage limit has been updated."
+          "Payment verified successfully! Your usage limit has been updated.",
         );
         setManualReference("");
         // Refresh usage data in parent component
@@ -342,8 +343,8 @@ const UpgradeModal = ({
                     ? "$15"
                     : "₦15,000"
                   : premiumGateway === "paypal"
-                  ? "$180"
-                  : "₦180,000"}
+                    ? "$180"
+                    : "₦180,000"}
                 <span style={{ fontSize: "14px", fontWeight: "normal" }}>
                   /{premiumPlan === "monthly" ? "month" : "year"}
                 </span>
@@ -539,8 +540,8 @@ const UpgradeModal = ({
                         ? "$15"
                         : "₦15,000"
                       : premiumGateway === "paypal"
-                      ? "$180"
-                      : "₦180,000"
+                        ? "$180"
+                        : "₦180,000"
                   }/${premiumPlan === "monthly" ? "mo" : "yr"}`}
             </button>
           </div>

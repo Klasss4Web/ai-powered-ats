@@ -4,6 +4,7 @@ import UserAvatar from "../components/UserAvatar";
 import UsageStatus from "../components/UsageStatus";
 import UpgradeModal from "../components/UpgradeModal";
 import LoginModal from "../components/auth/LoginModal";
+import { AUTH_CONSTANTS } from "../constants/auth_constants";
 import AnimatedLoader from "../components/loaders/animated-loader/AnimatedLoader";
 
 const RecruitersView = () => {
@@ -58,7 +59,7 @@ const RecruitersView = () => {
 
   // Check authentication on app load
   useEffect(() => {
-    const token = localStorage.getItem("authToken");
+    const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
     if (token) {
       verifyAuth(token);
     } else {
@@ -88,7 +89,7 @@ const RecruitersView = () => {
       }
     } catch (error) {
       console.error("Auth verification failed:", error);
-      localStorage.removeItem("authToken");
+      localStorage.removeItem(AUTH_CONSTANTS.TOKEN_KEY);
       setShowLoginModal(true);
     }
   };
@@ -96,7 +97,7 @@ const RecruitersView = () => {
   const fetchUsageInfo = async () => {
     setLoadingUsage(true);
     try {
-      const token = localStorage.getItem("authToken");
+      const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
       const response = await fetch("http://127.0.0.1:5000/api/user/usage", {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -150,7 +151,7 @@ const RecruitersView = () => {
     });
 
     try {
-      const token = localStorage.getItem("authToken");
+      const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
       const response = await fetch("http://127.0.0.1:5000/api/batch-match", {
         method: "POST",
         headers: {
@@ -187,13 +188,13 @@ const RecruitersView = () => {
     setIsAuthenticated(true);
     setIsPremiumUser(userData.subscription_type === "premium");
     setShowLoginModal(false);
-    localStorage.setItem("authToken", userData.token);
+    localStorage.setItem(AUTH_CONSTANTS.TOKEN_KEY, userData.token);
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
     setUser(null);
-    localStorage.removeItem("authToken");
+    localStorage.removeItem(AUTH_CONSTANTS.TOKEN_KEY);
     setShowLoginModal(true);
   };
 
@@ -393,8 +394,8 @@ const RecruitersView = () => {
                                     result.scores.overall_match_score >= 80
                                       ? "bg-green-100 text-green-800"
                                       : result.scores.overall_match_score >= 60
-                                      ? "bg-yellow-100 text-yellow-800"
-                                      : "bg-red-100 text-red-800"
+                                        ? "bg-yellow-100 text-yellow-800"
+                                        : "bg-red-100 text-red-800"
                                   }`}
                                 >
                                   {result.scores.overall_match_score}%
