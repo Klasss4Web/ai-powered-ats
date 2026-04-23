@@ -25,3 +25,24 @@ resource "aws_db_subnet_group" "db" {
     Name = "${var.app_name}-db-subnet-group"
   }
 }
+
+resource "aws_security_group" "app" {
+  name   = "${var.app_name}-app-sg"
+  vpc_id = module.vpc.vpc_id
+
+  # Allow inbound traffic to Flask
+  ingress {
+    from_port   = 5000
+    to_port     = 5000
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # Allow outbound traffic (DB, internet, AWS services)
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
