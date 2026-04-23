@@ -18,9 +18,9 @@ jobs:
           aws-region: eu-west-2
 
       - name: Terraform Init
-        working-directory: infra
+        working-directory: terraform
         run: terraform init
 
       - name: Terraform Destroy
-        working-directory: infra
+        working-directory: terraform
         run: terraform destroy -auto-approve
