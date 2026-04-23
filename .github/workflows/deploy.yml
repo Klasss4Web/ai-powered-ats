@@ -25,17 +25,17 @@ jobs:
 
       # 🔧 Terraform init & apply FIRST (creates ECR)
       - name: Terraform Init
-        working-directory: infra
+        working-directory: terraform
         run: terraform init
 
       - name: Terraform Apply
-        working-directory: infra
+        working-directory: terraform
         run: terraform apply -auto-approve
 
       # 🧠 Extract ECR URL dynamically
       - name: Get ECR URL
         id: ecr
-        working-directory: infra
+        working-directory: terraform
         run: |
           echo "ECR_URL=$(terraform output -raw ecr_repository_url)" >> $GITHUB_ENV
 
@@ -59,5 +59,5 @@ jobs:
 
       #  🔧 Terraform apply AGAIN to update ECS with new image
       - name: Terraform Apply (Update ECS with image)
-        working-directory: infra
+        working-directory: terraform
         run: terraform apply -auto-approve
