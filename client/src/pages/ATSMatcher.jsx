@@ -54,6 +54,11 @@ const ATSMatcher = () => {
   const [savedResumes, setSavedResumes] = useState([]);
   const [resumeSource, setResumeSource] = useState("upload"); // "upload" or "saved"
   const [selectedSavedResume, setSelectedSavedResume] = useState(null);
+  const [loadingStates, setLoadingStates] = useState({
+    loadingSavingResume: false,
+  });
+
+  console.log({ savedResumes, resumeFile, resumeSource });
 
   // Check authentication on app load
   useEffect(() => {
@@ -214,7 +219,8 @@ const ATSMatcher = () => {
 
       if (response.ok) {
         const data = await response.json();
-        setSavedResumes(data.resumes);
+        const existingResumes = data?.resumes || [];
+        setSavedResumes(existingResumes);
       }
     } catch (error) {
       console.error("Saved resumes fetch error:", error);
@@ -227,7 +233,7 @@ const ATSMatcher = () => {
       showAlert("No resume file to save.", "error");
       return;
     }
-
+    setLoadingStates((prev) => ({ ...prev, loadingSavingResume: true }));
     const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
     const formData = new FormData();
     formData.append("resume", resumeFile);
@@ -1047,7 +1053,7 @@ const ATSMatcher = () => {
             </>
           ) : (
             <div style={styles.savedResumesContainer}>
-              {savedResumes.length === 0 ? (
+              {savedResumes?.length < 1 ? (
                 <p
                   style={{
                     textAlign: "center",
@@ -1059,7 +1065,7 @@ const ATSMatcher = () => {
                 </p>
               ) : (
                 <div style={styles.resumesGrid}>
-                  {savedResumes.map((resume) => (
+                  {savedResumes?.map((resume) => (
                     <div
                       key={resume.id}
                       style={{
@@ -1380,7 +1386,15 @@ const ATSMatcher = () => {
                 marginTop: "15px",
               }}
             >
-              💾 Save Resume for Later
+              {loadingStates.loadingSavingResume && (
+                <div
+                  className="spinner"
+                  style={{ width: "16px", height: "16px" }}
+                />
+              )}
+              {loadingStates.loadingSavingResume
+                ? "Saving..."
+                : "💾 Save Resume for Later"}
             </button>
           )}
         </div>

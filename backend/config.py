@@ -7,8 +7,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Database Configuration
-DATABASE = 'ats_matcher.db'
+# Database Configuration (PostgreSQL)
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql://postgres:password@localhost:5432/ats_matcher"
+)
 
 # JWT Configuration
 JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'your-secret-key-change-in-production')

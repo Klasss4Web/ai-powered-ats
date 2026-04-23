@@ -1,0 +1,63 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches: ["master"]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    env:
+      TF_VAR_app_name: ${{ secrets.APP_NAME }}
+      TF_VAR_db_username: ${{ secrets.DB_USERNAME }}
+      TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # 🔧 Terraform init & apply FIRST (creates ECR)
+      - name: Terraform Init
+        working-directory: infra
+        run: terraform init
+
+      - name: Terraform Apply
+        working-directory: infra
+        run: terraform apply -auto-approve
+
+      # 🧠 Extract ECR URL dynamically
+      - name: Get ECR URL
+        id: ecr
+        working-directory: infra
+        run: |
+          echo "ECR_URL=$(terraform output -raw ecr_repository_url)" >> $GITHUB_ENV
+
+      # 🔐 Login to ECR
+      - name: Login to ECR
+        run: |
+          aws ecr get-login-password | docker login \
+            --username AWS \
+            --password-stdin $ECR_URL
+
+      # 🐳 Build image
+      - name: Build Docker Image
+        run: |
+          docker build -t ats_matcher_backend ./backend
+          docker tag ats_matcher_backend:latest $ECR_URL:latest
+
+      # 🚀 Push image
+      - name: Push Image
+        run: |
+          docker push $ECR_URL:latest
+
+      #  🔧 Terraform apply AGAIN to update ECS with new image
+      - name: Terraform Apply (Update ECS with image)
+        working-directory: infra
+        run: terraform apply -auto-approve

@@ -1,0 +1,21 @@
+[project]
+name = "backend"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "bcrypt>=5.0.0",
+    "flask==2.3.3",
+    "flask-cors==4.0.0",
+    "google-genai==0.3.0",
+    "openai>=2.32.0",
+    "psycopg2-binary>=2.9.12",
+    "psycopg[binary]>=3.3.3",
+    "pyjwt==2.8.0",
+    "pypdf2==3.0.1",
+    "python-docx==1.1.0",
+    "python-dotenv==1.0.0",
+    "reportlab==4.0.7",
+    "requests==2.31.0",
+]

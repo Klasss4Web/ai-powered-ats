@@ -4,3 +4,20 @@ QUICK_REFERENCE.md
 SEE_ALL_ANALYSIS_FEATURE.md
 ats_matcher.db
 backend/ats_matcher.db
+
+
+.terraform/
+terraform.tfstate.d/
+*.tfstate
+*.tfstate.backup
+terraform.tfvars
+
+# Lambda deployment packages
+lambda_function.zip
+
+# ignore all Lambda zips:
+backend/**/*_lambda.zip
+
+# But do include the scheduler
+!backend/scheduler/lambda_function.zip
+!frontend/lib

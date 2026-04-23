@@ -6,8 +6,8 @@ import json
 import datetime
 import requests
 from flask import jsonify, g, request
-from database import get_db
-from config import (
+from backend.db.database import get_db
+from backend.config import (
     PAYSTACK_SECRET_KEY, PAYSTACK_PK_KEY, PAYSTACK_BASE_URL, PAYSTACK_CALLBACK_URL,
     PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PAYPAL_BASE_URL, SUBSCRIPTION_PRICES
 )
@@ -32,7 +32,7 @@ def get_paypal_access_token():
 
 def register_payment_routes(app):
     """Register payment-related routes."""
-    from auth import token_required
+    from backend.auth.auth import token_required
 
     @app.route('/api/payment/initialize', methods=['POST'])
     @token_required
@@ -166,8 +166,14 @@ def register_payment_routes(app):
                 cursor = db.cursor()
                 cursor.execute('''
                     SELECT id FROM usage_tracking 
-                    WHERE user_id = ? AND action_type = ? AND metadata LIKE ?
-                ''', (g.user_id, 'payment', f'%"reference":"{reference}"%'))
+                    WHERE user_id = %s 
+                    AND action_type = %s 
+                    AND metadata::text LIKE %s
+                ''', (
+                    g.user_id,
+                    'payment',
+                    f'%\"reference\":\"{reference}\"%'
+                ))
                 existing = cursor.fetchone()
                 
                 if not existing:
@@ -180,8 +186,8 @@ def register_payment_routes(app):
 
                         cursor.execute('''
                             UPDATE users
-                            SET subscription_type = 'premium', subscription_expires_at = ?
-                            WHERE id = ?
+                            SET subscription_type = 'premium', subscription_expires_at = %s
+                            WHERE id = %s
                         ''', (expires_at.isoformat(), g.user_id))
 
                         db.commit()
@@ -191,7 +197,7 @@ def register_payment_routes(app):
                         amount_naira = result.get('data', {}).get('amount')
                         cursor.execute('''
                             INSERT INTO usage_tracking (user_id, action_type, date_created, metadata)
-                            VALUES (?, ?, ?, ?)
+                            VALUES (%s, %s, %s, %s)
                         ''', (g.user_id, 'payment', datetime.date.today().isoformat(), json.dumps({
                             'amount': amount_naira,
                             'currency': 'NGN',
@@ -287,8 +293,10 @@ def register_payment_routes(app):
                         cursor = db.cursor()
                         cursor.execute('''
                             SELECT id FROM usage_tracking 
-                            WHERE user_id = ? AND action_type = ? AND metadata LIKE ?
-                        ''', (g.user_id, 'payment', f'%"reference":"{order_id}"%'))
+                            WHERE user_id = %s 
+                            AND action_type = %s 
+                            AND metadata::text LIKE %s
+                        ''', (g.user_id, 'payment', f'%\"reference\":\"{order_id}\"%'))
                         existing = cursor.fetchone()
                         
                         if not existing:
@@ -301,8 +309,8 @@ def register_payment_routes(app):
 
                                 cursor.execute('''
                                     UPDATE users
-                                    SET subscription_type = 'premium', subscription_expires_at = ?
-                                    WHERE id = ?
+                                    SET subscription_type = 'premium', subscription_expires_at = %s
+                                    WHERE id = %s
                                 ''', (expires_at.isoformat(), g.user_id))
 
                                 db.commit()
@@ -311,14 +319,19 @@ def register_payment_routes(app):
                                 # Record pay-as-you-go payment
                                 cursor.execute('''
                                     INSERT INTO usage_tracking (user_id, action_type, date_created, metadata)
-                                    VALUES (?, ?, ?, ?)
-                                ''', (g.user_id, 'payment', datetime.date.today().isoformat(), json.dumps({
-                                    'amount': amount_usd,
-                                    'currency': 'USD',
-                                    'type': payment_type,
-                                    'reference': order_id,
-                                    'gateway': 'paypal'
-                                })))
+                                    VALUES (%s, %s, %s, %s)
+                                ''', (
+                                    g.user_id,
+                                    'payment',
+                                    datetime.date.today(),  # no need for .isoformat()
+                                    json.dumps({
+                                        'amount': amount_usd,
+                                        'currency': 'USD',
+                                        'type': payment_type,
+                                        'reference': order_id,
+                                        'gateway': 'paypal'
+                                    })
+                                ))
 
                                 db.commit()
                                 print("PayPal payment recorded successfully")
@@ -379,8 +392,9 @@ def register_payment_routes(app):
             # Get user email
             db = get_db()
             cursor = db.cursor()
-            cursor.execute('SELECT email FROM users WHERE id = ?', (g.user_id,))
+            cursor.execute('SELECT email FROM users WHERE id = %s', (g.user_id,))
             user = cursor.fetchone()
+            
             if not user:
                 return jsonify({'error': 'User not found'}), 404
 

@@ -155,7 +155,7 @@ const SubscriptionPage = () => {
           <div className="plan-tag">Popular</div>
           <h2>Monthly Premium</h2>
           <p className="plan-price">₦15,000 or $15 / month</p>
-          <ul>
+          <ul className="plan-coverage">
             <li>Up to 10 analyses per day</li>
             <li>Saved resume library</li>
             <li>Priority support</li>
@@ -172,7 +172,7 @@ const SubscriptionPage = () => {
           <div className="plan-tag plan-tag-alt">Best value</div>
           <h2>Yearly Premium</h2>
           <p className="plan-price">₦180,000 or $180 / year</p>
-          <ul>
+          <ul className="plan-coverage">
             <li>Everything in monthly</li>
             <li>Save 25% with yearly billing</li>
             <li>Priority upgrades and support</li>
@@ -225,13 +225,15 @@ const SubscriptionPage = () => {
           </div>
         </div>
 
-        <button
-          className="primary-btn upgrade-btn"
-          onClick={handleUpgrade}
-          disabled={loading}
-        >
-          {loading ? "Processing..." : "Continue to payment"}
-        </button>
+        <div className="payment-btn_container">
+          <button
+            className="primary-btn upgrade-btn"
+            onClick={handleUpgrade}
+            disabled={loading}
+          >
+            {loading ? "Processing..." : "Continue to payment"}
+          </button>
+        </div>
 
         {paymentConfig && (
           <p className="payment-note">
