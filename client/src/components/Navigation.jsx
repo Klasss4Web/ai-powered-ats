@@ -14,9 +14,9 @@ const Navigation = () => {
         <NavLink to="/matcher" className={activeClass}>
           Matcher
         </NavLink>
-        <NavLink to="/recruiters" className={activeClass}>
+        {/* <NavLink to="/recruiters" className={activeClass}>
           Recruiters
-        </NavLink>
+        </NavLink> */}
         <NavLink to="/dashboard" className={activeClass}>
           Dashboard
         </NavLink>

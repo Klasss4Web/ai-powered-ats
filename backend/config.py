@@ -20,7 +20,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 PAYSTACK_SECRET_KEY = os.getenv('PAYSTACK_SECRET_KEY')
 PAYSTACK_PK_KEY = os.getenv('PAYSTACK_PK_KEY')
 PAYSTACK_BASE_URL = 'https://api.paystack.co'
-PAYSTACK_CALLBACK_URL = os.getenv('PAYSTACK_CALLBACK_URL', 'http://localhost:5173/')
+PAYSTACK_CALLBACK_URL = os.getenv('PAYSTACK_CALLBACK_URL', 'http://localhost:5173/matcher')
 
 # PayPal Configuration
 PAYPAL_CLIENT_ID = os.getenv('PAYPAL_CLIENT_ID')

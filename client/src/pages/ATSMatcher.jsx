@@ -1,14 +1,14 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 
+import fetchWithTimeout from "../configs/fetch";
 import AlertModal from "../components/AlertModal";
 import UserAvatar from "../components/UserAvatar";
 import UsageStatus from "../components/UsageStatus";
 import UpgradeModal from "../components/UpgradeModal";
 import LoginModal from "../components/auth/LoginModal";
-import AnimatedLoader from "../components/loaders/animated-loader/AnimatedLoader";
-import fetchWithTimeout from "../configs/fetch";
 import { AUTH_CONSTANTS } from "../constants/auth_constants";
+import AnimatedLoader from "../components/loaders/animated-loader/AnimatedLoader";
 
 const ATSMatcher = () => {
   const showOtherFeatures = false; // Toggle to show/hide extended features
@@ -120,14 +120,6 @@ const ATSMatcher = () => {
       const payerId = urlParams.get("PayerID");
       const paystackReference = urlParams.get("trxref");
       const reference = urlParams.get("reference");
-
-      console.log("URL parameters detected:", {
-        paypalToken,
-        payerId,
-        paystackReference,
-        reference,
-      });
-      console.log("Current URL:", window.location.href);
 
       if ((paypalToken && payerId) || paystackReference || reference) {
         // Clean up the URL
@@ -881,8 +873,6 @@ const ATSMatcher = () => {
       verifyPayment();
     }
   }, [reference, gateway]);
-
-  console.log({ reference });
 
   return (
     <div style={styles.container}>
@@ -1679,6 +1669,8 @@ const styles = {
   container: {
     width: "100%",
     maxWidth: "1000px",
+    height: "89vh",
+    overflowY: "auto",
     margin: "0 auto",
     padding: "30px",
     fontFamily: "Arial, sans-serif",
