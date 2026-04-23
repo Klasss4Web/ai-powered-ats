@@ -1,5 +1,5 @@
 resource "aws_db_instance" "postgres" {
-  identifier        = "${var.app_name}-db"
+  identifier        = lower("${var.app_name}-db")
   engine            = "postgres"
   engine_version    = "15"
   instance_class    = "db.t3.micro"
