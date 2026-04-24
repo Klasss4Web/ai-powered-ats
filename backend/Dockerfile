@@ -1,15 +1,18 @@
 FROM python:3.11-slim
 
-WORKDIR /
+WORKDIR /app
 
-COPY requirements.txt .
+# install dependencies
+COPY backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# install gunicorn explicitly (safe fallback)
+RUN pip install gunicorn
 
-ENV FLASK_APP=app.py
-ENV FLASK_RUN_HOST=0.0.0.0
+# copy backend code into container root
+COPY backend/ .
 
 EXPOSE 5000
 
+# IMPORTANT: app.py is now in /app/app.py
 CMD ["gunicorn", "-b", "0.0.0.0:5000", "app:app"]
