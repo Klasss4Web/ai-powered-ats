@@ -6,3 +6,7 @@ variable "aws_region" {
 variable "app_name" {}
 variable "db_username" {}
 variable "db_password" {}
+variable "environment" {
+  description = "Deployment environment (dev, staging, prod)"
+  type        = string
+}
