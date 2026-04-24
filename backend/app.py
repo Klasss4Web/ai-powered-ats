@@ -25,7 +25,7 @@ app.teardown_appcontext(close_db_connection)
 with app.app_context():
     # if os.getenv("ENV") != "production":
     #     create_database_if_not_exists()
-        init_db(app)
+    init_db(app)
 
 
 def register_routes(app):

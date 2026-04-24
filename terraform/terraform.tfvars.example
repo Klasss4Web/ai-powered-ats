@@ -1,0 +1,26 @@
+# Terraform Variables Example
+# Copy this file to terraform.tfvars and fill in your values
+
+# AWS Configuration
+aws_region = "eu-west-2"
+
+# Application Configuration
+app_name    = "ats-matcher-backend"
+environment = "production"
+
+# Database Configuration
+db_username = "your_db_username"
+db_password = "your_secure_db_password"
+db_name     = "ats_matcher"
+
+# Database Instance (adjust based on needs)
+db_instance_class = "db.t3.micro"
+
+# ECS Configuration
+desired_count = 1
+cpu          = 256
+memory       = 512
+
+# Application Configuration
+container_port    = 5000
+health_check_path = "/health"

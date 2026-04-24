@@ -7,17 +7,12 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Database Configuration (PostgreSQL)
-# DATABASE_URL = os.getenv(
-#     "DATABASE_URL",
-#     "postgresql://postgres:password@localhost:5432/ats_matcher"
-# )
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
     # "atsmatcherbackend-db.cjmke68s0ef0.eu-west-2.rds.amazonaws.com"
-    "postgresql://atsmatcher:Gunners101@atsmatcherbackend-db.cjmke68s0ef0.eu-west-2.rds.amazonaws.com:5432/atsmatcher"
 )
+
 
 # JWT Configuration
 JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'change-in-production')

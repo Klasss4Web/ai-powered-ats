@@ -19,11 +19,11 @@ from openai import OpenAI
 # LLM INITIALIZATION
 # ---------------------------
 try:
-    api_key = os.getenv("GEMINI_API_KEY")
-
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    
     if api_key:
         model = OpenAI(
-            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+            base_url="https://openrouter.ai/api/v1",
             api_key=api_key
         )
     else:
@@ -43,7 +43,7 @@ def llm_call(prompt):
 
     response = model.chat.completions.create(
         messages=[{"role": "user", "content": prompt}],
-        model="gemini-robotics-er-1.5-preview"
+        model="gpt-5-nano"
     )
 
     return response.choices[0].message.content

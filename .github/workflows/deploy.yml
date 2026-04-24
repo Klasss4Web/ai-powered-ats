@@ -2,7 +2,8 @@ name: Deploy Backend
 
 on:
   push:
-    branches: ["master"]
+    branches: ["main", "master"]
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -25,15 +26,25 @@ jobs:
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.5.0"
 
-      # 🔧 Terraform init & apply FIRST (creates ECR)
+      # 🔧 Terraform init & apply FIRST (creates infrastructure)
       - name: Terraform Init
         working-directory: terraform
         run: terraform init
 
+      - name: Terraform Validate
+        working-directory: terraform
+        run: terraform validate
+
+      - name: Terraform Plan
+        working-directory: terraform
+        run: terraform plan -out=tfplan
+
       - name: Terraform Apply
         working-directory: terraform
-        run: terraform apply -auto-approve
+        run: terraform apply -auto-approve tfplan
 
       # 🧠 Extract ECR URL dynamically
       - name: Get ECR URL
@@ -45,22 +56,80 @@ jobs:
       # 🔐 Login to ECR
       - name: Login to ECR
         run: |
-          aws ecr get-login-password | docker login \
+          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login \
             --username AWS \
-            --password-stdin $ECR_URL
+            --password-stdin ${{ env.ECR_URL }}
 
-      # 🐳 Build image
+      # 🐳 Build and push Docker image
       - name: Build Docker Image
         run: |
-          docker build -t atsmatcherbackend .
-          docker tag atsmatcherbackend:latest $ECR_URL:latest
+          docker build -f backend/Dockerfile -t ${{ env.ECR_URL }}:latest .
 
-      # 🚀 Push image
       - name: Push Image
         run: |
-          docker push $ECR_URL:latest
+          docker push ${{ env.ECR_URL }}:latest
 
-      #  🔧 Terraform apply AGAIN to update ECS with new image
-      - name: Terraform Apply (Update ECS with image)
+      # 🔄 Update ECS service with new image
+      - name: Update ECS Service
         working-directory: terraform
-        run: terraform apply -auto-approve
+        run: |
+          terraform apply -auto-approve -var="image_tag=latest"
+
+      # 🗄️ Wait for RDS to be ready
+      - name: Wait for Database
+        run: |
+          DB_ENDPOINT=$(terraform output -raw rds_endpoint)
+          chmod +x scripts/check-db.sh
+          ./scripts/check-db.sh $DB_ENDPOINT ${{ secrets.DB_USERNAME }} ${{ secrets.DB_PASSWORD }} ${{ secrets.DB_NAME }}
+
+      # 🏗️ Initialize Database Schema
+      - name: Initialize Database
+        run: |
+          DB_ENDPOINT=$(terraform output -raw rds_endpoint)
+          chmod +x scripts/init-db.sh
+          ./scripts/init-db.sh $DB_ENDPOINT ${{ secrets.DB_USERNAME }} ${{ secrets.DB_PASSWORD }} ${{ secrets.DB_NAME }}
+
+      # 🧪 Wait for deployment to complete
+      - name: Wait for ECS Service Stability
+        run: |
+          aws ecs wait services-stable \
+            --cluster $(terraform output -raw ecs_cluster_name) \
+            --services $(terraform output -raw ecs_service_name) \
+            --region ${{ secrets.AWS_REGION }}
+
+      # 🔍 Test Application Health
+      - name: Test Application Health
+        run: |
+          ALB_DNS=$(terraform output -raw alb_dns_name)
+          echo "Testing application at http://$ALB_DNS/health"
+
+          # Wait for application to respond
+          for i in {1..20}; do
+            if curl -f -s http://$ALB_DNS/health > /dev/null; then
+              echo "Application is healthy!"
+              break
+            fi
+            echo "Waiting for application... ($i/20)"
+            sleep 15
+          done
+
+          if [ $i -eq 20 ]; then
+            echo "Application failed health check"
+            exit 1
+          fi
+
+      # 📊 Get deployment status
+      - name: Get ALB DNS
+        working-directory: terraform
+        run: |
+          echo "Application URL: http://$(terraform output -raw alb_dns_name)"
+          aws ecs wait services-stable \
+            --cluster $(terraform output -raw ecs_cluster_name) \
+            --services $(terraform output -raw ecs_service_name) \
+            --region ${{ secrets.AWS_REGION }}
+
+      # 📊 Get deployment status
+      - name: Get ALB DNS
+        working-directory: terraform
+        run: |
+          echo "Application URL: http://$(terraform output -raw alb_dns_name)"
