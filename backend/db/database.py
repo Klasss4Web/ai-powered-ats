@@ -5,7 +5,7 @@ Database utilities for ATS Matcher Backend (PostgreSQL)
 import psycopg
 from psycopg.rows import dict_row
 from flask import g
-from backend.config import DATABASE_URL
+from config import DATABASE_URL
 
 
 # =========================================================

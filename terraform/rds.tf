@@ -5,9 +5,10 @@ resource "aws_db_instance" "postgres" {
   instance_class    = "db.t3.micro"
   allocated_storage = 20
 
-  db_name  = "appdb"
+  db_name  = "atsmatcher"
   username = var.db_username
   password = var.db_password
+  port       = 5432
 
   skip_final_snapshot = true
 

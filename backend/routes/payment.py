@@ -6,8 +6,8 @@ import json
 import datetime
 import requests
 from flask import jsonify, g, request
-from backend.db.database import get_db
-from backend.config import (
+from db.database import get_db
+from config import (
     PAYSTACK_SECRET_KEY, PAYSTACK_PK_KEY, PAYSTACK_BASE_URL, PAYSTACK_CALLBACK_URL,
     PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PAYPAL_BASE_URL, SUBSCRIPTION_PRICES
 )
@@ -32,7 +32,7 @@ def get_paypal_access_token():
 
 def register_payment_routes(app):
     """Register payment-related routes."""
-    from backend.auth.auth import token_required
+    from auth.auth import token_required
 
     @app.route('/api/payment/initialize', methods=['POST'])
     @token_required

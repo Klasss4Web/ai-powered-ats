@@ -8,8 +8,8 @@ import secrets
 import bcrypt
 from functools import wraps
 from flask import request, jsonify, g
-from backend.db.database import get_db
-from backend.config import JWT_SECRET_KEY
+from db.database import get_db
+from config import JWT_SECRET_KEY
 
 
 # ✅ SECURE PASSWORD HASHING

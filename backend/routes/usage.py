@@ -5,8 +5,8 @@ Usage tracking and limits for ATS Matcher Backend (PostgreSQL)
 import datetime
 import json
 from flask import jsonify, g, request
-from backend.db.database import get_db
-from backend.config import USAGE_LIMITS
+from db.database import get_db
+from config import USAGE_LIMITS
 
 
 def check_usage_limit(user_id, action_type='analysis'):
@@ -87,7 +87,7 @@ def record_usage(user_id, action_type='analysis', metadata=None):
 
 
 def register_usage_routes(app):
-    from backend.auth.auth import token_required
+    from auth.auth import token_required
 
     @app.route('/api/user/usage', methods=['GET'])
     @token_required

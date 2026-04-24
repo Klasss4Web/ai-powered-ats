@@ -10,5 +10,5 @@ variable "db_password" {}
 variable "environment" {
   description = "Deployment environment"
   type        = string
-  default     = "dev"
+  default     = "production"
 }

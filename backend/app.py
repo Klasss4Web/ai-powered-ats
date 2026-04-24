@@ -5,13 +5,14 @@ ATS Matcher Backend - Main Application Entry Point
 from flask import Flask, jsonify
 from flask_cors import CORS
 
-from backend.db import init_db, close_db_connection, create_database_if_not_exists
+from db import init_db, close_db_connection, create_database_if_not_exists
 
 # Import route modules
-from backend.auth.auth import register_auth_routes
-from backend.routes.payment import register_payment_routes
-from backend.routes.usage import register_usage_routes
-from backend.routes.resume import register_resume_routes
+from auth.auth import register_auth_routes
+from routes.payment import register_payment_routes
+from routes.usage import register_usage_routes
+from routes.resume import register_resume_routes
+import os
 
 app = Flask(__name__)
 CORS(app)
@@ -22,8 +23,9 @@ app.teardown_appcontext(close_db_connection)
 
 # Startup bootstrap
 with app.app_context():
-    create_database_if_not_exists()
-    init_db(app)
+    # if os.getenv("ENV") != "production":
+    #     create_database_if_not_exists()
+        init_db(app)
 
 
 def register_routes(app):

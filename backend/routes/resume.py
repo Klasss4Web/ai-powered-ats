@@ -9,9 +9,9 @@ import PyPDF2
 from io import BytesIO
 from docx import Document
 from flask import jsonify, g, request, send_file
-from backend.db.database import get_db
-from backend.routes.usage import check_usage_limit, record_usage
-from backend.config import MAX_SAVED_RESUMES, MAX_BATCH_RESUMES
+from db.database import get_db
+from routes.usage import check_usage_limit, record_usage
+from config import MAX_SAVED_RESUMES, MAX_BATCH_RESUMES
 from openai import OpenAI
 
 
@@ -183,7 +183,7 @@ def generate_optimized_resume_docx(original_text, missing_skills, analysis_data=
 # ---------------------------
 def register_resume_routes(app):
 
-    from backend.auth.auth import token_required
+    from auth.auth import token_required
 
 
     # ---------------------------
