@@ -52,7 +52,7 @@ jobs:
       # 🐳 Build image
       - name: Build Docker Image
         run: |
-          docker build -t ats_matcher_backend ./backend
+          docker build -t ats_matcher_backend .
           docker tag ats_matcher_backend:latest $ECR_URL:latest
 
       # 🚀 Push image
