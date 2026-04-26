@@ -1,10 +1,8 @@
-# Application Load Balancer
-resource "aws_lb" "main" {
+resource "aws_lb" "alb" {
   name               = "${var.app_name}-alb"
-  internal           = false
   load_balancer_type = "application"
+  subnets            = module.vpc.public_subnets
   security_groups    = [aws_security_group.alb.id]
-  subnets            = aws_subnet.public[*].id
 
   enable_deletion_protection = false
 
@@ -13,23 +11,27 @@ resource "aws_lb" "main" {
   }
 }
 
-# Target Group
-resource "aws_lb_target_group" "main" {
+resource "aws_lb_target_group" "tg" {
   name        = "${var.app_name}-tg"
-  port        = var.container_port
+  port        = 5000
   protocol    = "HTTP"
-  vpc_id      = aws_vpc.main.id
+  vpc_id      = module.vpc.vpc_id
+
+  lifecycle {
+    create_before_destroy = true
+  }
+
+  # ✅ REQUIRED for Fargate
   target_type = "ip"
 
   health_check {
-    enabled             = true
-    healthy_threshold   = 2
-    interval            = 30
-    matcher             = "200"
-    path                = var.health_check_path
+    path                = "/"          # or "/health" if you add endpoint
     port                = "traffic-port"
     protocol            = "HTTP"
+    matcher             = "200-399"
+    interval            = 30
     timeout             = 5
+    healthy_threshold   = 2
     unhealthy_threshold = 2
   }
 
@@ -38,28 +40,13 @@ resource "aws_lb_target_group" "main" {
   }
 }
 
-# ALB Listener
-resource "aws_lb_listener" "main" {
-  load_balancer_arn = aws_lb.main.arn
-  port              = "80"
+resource "aws_lb_listener" "listener" {
+  load_balancer_arn = aws_lb.alb.arn
+  port              = 80
   protocol          = "HTTP"
 
   default_action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.main.arn
+    target_group_arn = aws_lb_target_group.tg.arn
   }
 }
-
-# Optional: HTTPS Listener (uncomment and configure if needed)
-# resource "aws_lb_listener" "https" {
-#   load_balancer_arn = aws_lb.main.arn
-#   port              = "443"
-#   protocol          = "HTTPS"
-#   ssl_policy        = "ELBSecurityPolicy-2016-08"
-#   certificate_arn   = aws_acm_certificate.main.arn
-
-#   default_action {
-#     type             = "forward"
-#     target_group_arn = aws_lb_target_group.main.arn
-#   }
-# }

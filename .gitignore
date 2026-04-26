@@ -11,6 +11,7 @@ terraform.tfstate.d/
 *.tfstate
 *.tfstate.backup
 terraform.tfvars
+backend.auto.tfvars
 
 # Lambda deployment packages
 lambda_function.zip

@@ -1,36 +1,35 @@
-# RDS PostgreSQL Database
-resource "aws_db_subnet_group" "main" {
-  name       = "${var.app_name}-db-subnet-group"
-  subnet_ids = aws_subnet.private[*].id
+resource "aws_db_subnet_group" "db" {
+  name       = "${var.app_name}-db-subnet"
+  subnet_ids = module.vpc.private_subnets
 
   tags = {
-    Name = "${var.app_name}-db-subnet-group"
+    Name = "${var.app_name}-db-subnet"
   }
 }
 
-resource "aws_db_instance" "main" {
-  identifier             = "${var.app_name}-db"
-  engine                 = "postgres"
-  engine_version         = "15.4"
-  instance_class         = var.db_instance_class
-  allocated_storage      = 20
-  storage_type           = "gp2"
-  db_name                = var.db_name
-  username               = var.db_username
-  password               = var.db_password
-  db_subnet_group_name   = aws_db_subnet_group.main.name
-  vpc_security_group_ids = [aws_security_group.rds.id]
-  skip_final_snapshot    = true
-  publicly_accessible    = false
+resource "aws_db_subnet_group" "public" {
+  name       = "${var.app_name}-db-public"
+  subnet_ids = module.vpc.public_subnets
+}
 
-  # Enable backup
-  backup_retention_period = 7
-  backup_window           = "03:00-04:00"
+resource "aws_db_instance" "postgres" {
+  identifier        = "${var.app_name}-db"
+  engine            = "postgres"
+  instance_class    = "db.t3.micro"
+  allocated_storage = 20
 
-  # Enable maintenance
-  maintenance_window = "sun:04:00-sun:05:00"
+  db_name  = "appdb"
+  # username = "atsmatcher"
+  username = var.db_username
+  password = var.db_password
 
-  tags = {
-    Name = "${var.app_name}-db"
-  }
+  publicly_accessible = true
+  vpc_security_group_ids = [aws_security_group.db.id]
+  # db_subnet_group_name   = aws_db_subnet_group.db.name
+  db_subnet_group_name = aws_db_subnet_group.public.name
+
+  backup_retention_period = 0
+
+
+  skip_final_snapshot = true
 }

@@ -21,11 +21,11 @@ CORS(app)
 # Register teardown
 app.teardown_appcontext(close_db_connection)
 
-# Startup bootstrap
+
 with app.app_context():
-    # if os.getenv("ENV") != "production":
-    #     create_database_if_not_exists()
     init_db(app)
+    print("Database initialized successfully.")
+
 
 
 def register_routes(app):
@@ -54,8 +54,9 @@ def health():
     return jsonify({"status": "ok"})
 
 
+register_routes(app)
+
 if __name__ == '__main__':
     init_db(app)
-    register_routes(app)
-
+    print("Database initialized successfully.")
     app.run(debug=True, port=5000)

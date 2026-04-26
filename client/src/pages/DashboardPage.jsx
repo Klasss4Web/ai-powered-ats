@@ -5,6 +5,9 @@ import LoginModal from "../components/auth/LoginModal";
 import UsageStatus from "../components/UsageStatus";
 import { AUTH_CONSTANTS } from "../constants/auth_constants";
 
+const BASE_URL =
+  "http://ats-matcher-backend-alb-1819594825.eu-west-2.elb.amazonaws.com/api";
+
 const DashboardPage = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
@@ -37,7 +40,7 @@ const DashboardPage = () => {
   const verifyAuth = async (token) => {
     setLoading(true);
     try {
-      const response = await fetch("http://127.0.0.1:5000/api/auth/verify", {
+      const response = await fetch(`${BASE_URL}/auth/verify`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -68,7 +71,7 @@ const DashboardPage = () => {
 
   const fetchUsageInfo = async (token) => {
     try {
-      const response = await fetch("http://127.0.0.1:5000/api/user/usage", {
+      const response = await fetch(`${BASE_URL}/user/usage`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
@@ -82,7 +85,7 @@ const DashboardPage = () => {
 
   const fetchSavedResumes = async (token) => {
     try {
-      const response = await fetch("http://127.0.0.1:5000/api/resumes", {
+      const response = await fetch(`${BASE_URL}/resumes`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {

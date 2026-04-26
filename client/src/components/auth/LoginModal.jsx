@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { AUTH_CONSTANTS } from "../../constants/auth_constants";
 
+const BASE_URL =
+  "http://ats-matcher-backend-alb-1819594825.eu-west-2.elb.amazonaws.com/api";
+
 const LoginModal = ({ isOpen, onClose, onLogin }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -54,16 +57,13 @@ const LoginModal = ({ isOpen, onClose, onLogin }) => {
       const endpoint = isRegister ? "register" : "login";
       const body = isRegister ? { email, password, name } : { email, password };
 
-      const response = await fetch(
-        `http://127.0.0.1:5000/api/auth/${endpoint}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(body),
+      const response = await fetch(`${BASE_URL}/auth/${endpoint}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify(body),
+      });
 
       const data = await response.json();
 
@@ -131,16 +131,13 @@ const LoginModal = ({ isOpen, onClose, onLogin }) => {
     setIsForgotLoading(true);
 
     try {
-      const response = await fetch(
-        "http://127.0.0.1:5000/api/auth/forgot-password",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ email: forgotEmail }),
+      const response = await fetch(`${BASE_URL}/auth/forgot-password`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify({ email: forgotEmail }),
+      });
 
       const data = await response.json();
 

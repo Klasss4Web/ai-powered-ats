@@ -5,22 +5,23 @@ Configuration and constants for ATS Matcher Backend
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    # "atsmatcherbackend-db.cjmke68s0ef0.eu-west-2.rds.amazonaws.com"
-)
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    raise Exception("DATABASE_URL not set in environment")
 
 
 # JWT Configuration
-JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'change-in-production')
+JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY')
+if not JWT_SECRET_KEY:
+    raise Exception("JWT_SECRET_KEY not set")
 
-# Gemini API Configuration
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# Payment Configuration
+# Paystack Payment Configuration
 PAYSTACK_SECRET_KEY = os.getenv('PAYSTACK_SECRET_KEY')
 PAYSTACK_PK_KEY = os.getenv('PAYSTACK_PK_KEY')
 PAYSTACK_BASE_URL = 'https://api.paystack.co'

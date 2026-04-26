@@ -1,18 +1,10 @@
-# Security Groups
 resource "aws_security_group" "alb" {
-  name_prefix = "${var.app_name}-alb-"
-  vpc_id      = aws_vpc.main.id
+  name   = "${var.app_name}-alb-sg"
+  vpc_id = module.vpc.vpc_id
 
   ingress {
     from_port   = 80
     to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port   = 443
-    to_port     = 443
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -23,19 +15,15 @@ resource "aws_security_group" "alb" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
-  tags = {
-    Name = "${var.app_name}-alb-sg"
-  }
 }
 
-resource "aws_security_group" "ecs" {
-  name_prefix = "${var.app_name}-ecs-"
-  vpc_id      = aws_vpc.main.id
+resource "aws_security_group" "app" {
+  name   = "${var.app_name}-app-sg"
+  vpc_id = module.vpc.vpc_id
 
   ingress {
-    from_port       = var.container_port
-    to_port         = var.container_port
+    from_port       = 5000
+    to_port         = 5000
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
   }
@@ -46,21 +34,18 @@ resource "aws_security_group" "ecs" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
-  tags = {
-    Name = "${var.app_name}-ecs-sg"
-  }
 }
 
-resource "aws_security_group" "rds" {
-  name_prefix = "${var.app_name}-rds-"
-  vpc_id      = aws_vpc.main.id
+resource "aws_security_group" "db" {
+  name   = "${var.app_name}-db-sg"
+  vpc_id = module.vpc.vpc_id
 
   ingress {
     from_port       = 5432
     to_port         = 5432
     protocol        = "tcp"
-    security_groups = [aws_security_group.ecs.id]
+    # security_groups = [aws_security_group.app.id]
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {
@@ -69,8 +54,6 @@ resource "aws_security_group" "rds" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
-  tags = {
-    Name = "${var.app_name}-rds-sg"
-  }
 }
+
+

@@ -69,3 +69,69 @@ variable "health_check_path" {
   type        = string
   default     = "/health"
 }
+
+# OpenAI API key for tracing (required for OpenAI Agents SDK tracing)
+variable "openai_api_key" {
+  description = "OpenAI API key for enabling tracing in OpenAI Agents SDK"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "jwt_secret_key" {
+  description = "JWT secret key for authentication and authorization"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "openrouter_api_key" {
+  description = "Openrouter api key for calling llm end points"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "paystack_secret_key" {
+  description = "paystack secret api key for verifying paystack public key"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "paystack_pk_key" {
+  description = "paystack public api key for calling paystack payment gateway"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "paypal_client_id" {
+  description = "paypal client id for identifying paypal client by paypal"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "paypal_secret_key" {
+  description = "paypal client secret key for calling paypal paypal"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+# Update after frontend deployment to deployment url
+variable "frontend_url" {
+  description = "paypal client secret key for calling paypal paypal"
+  type        = string
+  default     = "http://localhost:5173"
+  sensitive   = false
+}
+
+variable "paystack_callback_url" {
+  description = "paypal client secret key for calling paypal paypal"
+  type        = string
+  default     = "http://localhost:5173/matcher"
+  sensitive   = false
+}
+

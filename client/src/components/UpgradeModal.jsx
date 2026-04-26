@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { AUTH_CONSTANTS } from "../constants/auth_constants";
 
+const BASE_URL =
+  "http://ats-matcher-backend-alb-1819594825.eu-west-2.elb.amazonaws.com/api";
+
 const UpgradeModal = ({
   isOpen,
   onClose,
@@ -41,7 +44,7 @@ const UpgradeModal = ({
     try {
       const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
       const response = await fetch(
-        `http://127.0.0.1:5000/api/payment/manual-verify/${manualReference}`,
+        `${BASE_URL}/payment/manual-verify/${manualReference}`,
         {
           method: "POST",
           headers: {

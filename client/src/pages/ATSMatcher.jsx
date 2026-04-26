@@ -10,6 +10,9 @@ import LoginModal from "../components/auth/LoginModal";
 import { AUTH_CONSTANTS } from "../constants/auth_constants";
 import AnimatedLoader from "../components/loaders/animated-loader/AnimatedLoader";
 
+const BASE_URL =
+  "http://ats-matcher-backend-alb-1819594825.eu-west-2.elb.amazonaws.com/api";
+
 const ATSMatcher = () => {
   const showOtherFeatures = false; // Toggle to show/hide extended features
   const pendingAnalysis = localStorage.getItem("pendingAnalysis");
@@ -66,15 +69,12 @@ const ATSMatcher = () => {
       const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
       if (token) {
         try {
-          const response = await fetch(
-            "http://127.0.0.1:5000/api/auth/verify",
-            {
-              method: "GET",
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
+          const response = await fetch(`${BASE_URL}/auth/verify`, {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${token}`,
             },
-          );
+          });
 
           if (response.ok) {
             const data = await response.json();
@@ -187,7 +187,7 @@ const ATSMatcher = () => {
 
     setLoadingUsage(true);
     try {
-      const response = await fetch("http://127.0.0.1:5000/api/user/usage", {
+      const response = await fetch(`${BASE_URL}/user/usage`, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -211,7 +211,7 @@ const ATSMatcher = () => {
     if (!token) return;
 
     try {
-      const response = await fetch("http://127.0.0.1:5000/api/resumes", {
+      const response = await fetch(`${BASE_URL}/resumes`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -239,7 +239,7 @@ const ATSMatcher = () => {
     formData.append("resume", resumeFile);
 
     try {
-      const response = await fetch("http://127.0.0.1:5000/api/resumes/save", {
+      const response = await fetch(`${BASE_URL}/resumes/save`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -298,7 +298,7 @@ const ATSMatcher = () => {
     try {
       const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
       if (token) {
-        await fetch("http://127.0.0.1:5000/api/auth/logout", {
+        await fetch(`${BASE_URL}/auth/logout`, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
@@ -317,8 +317,6 @@ const ATSMatcher = () => {
       showAlert("Logged out successfully", "info");
     }
   };
-
-  console.log({ usageInfo });
 
   // Function to handle the form submission and API call
   const handleSubmission = async (e) => {
@@ -374,20 +372,10 @@ const ATSMatcher = () => {
     formData.append("job_description", jobDescription);
 
     try {
-      // const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
-      // const response = await fetch("http://127.0.0.1:5000/api/match", {
-      //   method: "POST",
-      //   headers: {
-      //     Authorization: `Bearer ${token}`,
-      //   },
-      //   body: formData,
-      // });
-
       const response = await fetchWithTimeout(
-        "http://127.0.0.1:5000/api/match",
+        `${BASE_URL}/match`,
         {
           method: "POST",
-
           body: formData,
         },
         100000,
@@ -443,7 +431,7 @@ const ATSMatcher = () => {
     setDownloadingOptimized(true);
     try {
       const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
-      const response = await fetch("http://127.0.0.1:5000/api/generate-cv", {
+      const response = await fetch(`${BASE_URL}/generate-cv`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -507,19 +495,16 @@ const ATSMatcher = () => {
     setDownloadingStandard(true);
     try {
       const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
-      const response = await fetch(
-        "http://127.0.0.1:5000/api/generate-standard-resume",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            resume_text: originalResumeText,
-          }),
+      const response = await fetch(`${BASE_URL}/generate-standard-resume`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
-      );
+        body: JSON.stringify({
+          resume_text: originalResumeText,
+        }),
+      });
 
       if (response.ok) {
         const blob = await response.blob();
@@ -553,9 +538,7 @@ const ATSMatcher = () => {
       const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
 
       // Step 1: Get Paystack public key
-      const configResponse = await fetch(
-        "http://127.0.0.1:5000/api/payment/config",
-      );
+      const configResponse = await fetch(`${BASE_URL}/payment/config`);
       if (!configResponse.ok) {
         showAlert("Failed to load payment configuration", "error");
         return;
@@ -563,21 +546,18 @@ const ATSMatcher = () => {
       const configData = await configResponse.json();
 
       // Step 2: Initialize payment with backend
-      const initResponse = await fetch(
-        "http://127.0.0.1:5000/api/payment/initialize",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            email: user.email,
-            amount: gateway === "paypal" ? 100 : 1000000, // $1.00 for PayPal, ₦1000 for Paystack
-            gateway: gateway,
-          }),
+      const initResponse = await fetch(`${BASE_URL}/payment/initialize`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
-      );
+        body: JSON.stringify({
+          email: user.email,
+          amount: gateway === "paypal" ? 100 : 1000000, // $1.00 for PayPal, ₦1000 for Paystack
+          gateway: gateway,
+        }),
+      });
 
       if (!initResponse.ok) {
         const error = await initResponse.json();
@@ -617,29 +597,24 @@ const ATSMatcher = () => {
       const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
 
       // Step 1: Get payment config
-      const configResponse = await fetch(
-        "http://127.0.0.1:5000/api/payment/config",
-      );
+      const configResponse = await fetch(`${BASE_URL}/payment/config`);
       if (!configResponse.ok) {
         showAlert("Failed to load payment configuration", "error");
         return;
       }
 
       // Step 2: Initialize subscription upgrade
-      const upgradeResponse = await fetch(
-        "http://127.0.0.1:5000/api/subscription/upgrade",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            plan_type: planType,
-            gateway: gateway,
-          }),
+      const upgradeResponse = await fetch(`${BASE_URL}/subscription/upgrade`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
-      );
+        body: JSON.stringify({
+          plan_type: planType,
+          gateway: gateway,
+        }),
+      });
 
       if (!upgradeResponse.ok) {
         const error = await upgradeResponse.json();
@@ -678,7 +653,7 @@ const ATSMatcher = () => {
       showAlert("Verifying PayPal payment...", "info");
       console.log("Making API call to verify PayPal payment");
       const response = await fetch(
-        `http://127.0.0.1:5000/api/payment/verify-paypal/${orderId}`,
+        `${BASE_URL}/payment/verify-paypal/${orderId}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -728,7 +703,7 @@ const ATSMatcher = () => {
     try {
       showAlert("Verifying payment...", "info");
       const response = await fetch(
-        `http://127.0.0.1:5000/api/payment/manual-verify/${reference}`,
+        `${BASE_URL}/payment/manual-verify/${reference}`,
         {
           method: "POST",
           headers: {
@@ -758,8 +733,6 @@ const ATSMatcher = () => {
     }
   };
 
-  console.log({ results });
-
   const handleVerifyPayment = async (reference) => {
     console.log("Starting Paystack verification for reference:", reference);
     const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
@@ -773,7 +746,7 @@ const ATSMatcher = () => {
       showAlert("Verifying payment...", "info");
       console.log("Making API call to verify Paystack payment");
       const verifyResponse = await fetch(
-        `http://127.0.0.1:5000/api/payment/verify/${reference}`,
+        `${BASE_URL}/payment/verify/${reference}`,
         {
           method: "GET",
           headers: {
@@ -836,7 +809,7 @@ const ATSMatcher = () => {
         let response;
         if (gateway === "paypal") {
           response = await fetch(
-            `http://127.0.0.1:5000/api/payment/verify-paypal/${reference}`,
+            `${BASE_URL}/payment/verify-paypal/${reference}`,
             {
               headers: {
                 Authorization: `Bearer ${token}`,
@@ -844,14 +817,11 @@ const ATSMatcher = () => {
             },
           );
         } else {
-          response = await fetch(
-            `http://127.0.0.1:5000/api/payment/verify/${reference}`,
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
+          response = await fetch(`${BASE_URL}/payment/verify/${reference}`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
             },
-          );
+          });
         }
         const data = await response.json();
         console.log("Payment verification response:", data);

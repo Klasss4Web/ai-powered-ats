@@ -8,6 +8,9 @@ const ResetPasswordPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState("");
 
+  const BASE_URL =
+    "http://ats-matcher-backend-alb-1819594825.eu-west-2.elb.amazonaws.com/api";
+
   const token = searchParams.get("token");
 
   useEffect(() => {
@@ -33,16 +36,13 @@ const ResetPasswordPage = () => {
     setMessage("");
 
     try {
-      const response = await fetch(
-        "http://127.0.0.1:5000/api/auth/reset-password",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ token, new_password: password }),
+      const response = await fetch(`${BASE_URL}/auth/reset-password`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify({ token, new_password: password }),
+      });
 
       const data = await response.json();
 

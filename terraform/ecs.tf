@@ -1,146 +1,105 @@
-# ECS Cluster
-resource "aws_ecs_cluster" "main" {
+resource "aws_ecs_cluster" "cluster" {
   name = "${var.app_name}-cluster"
-
-  setting {
-    name  = "containerInsights"
-    value = "enabled"
-  }
-
-  tags = {
-    Name = "${var.app_name}-cluster"
-  }
 }
 
-# CloudWatch Log Group
-resource "aws_cloudwatch_log_group" "ecs" {
+resource "aws_cloudwatch_log_group" "logs" {
   name              = "/ecs/${var.app_name}"
-  retention_in_days = 30
-
-  tags = {
-    Name = "${var.app_name}-logs"
-  }
+  retention_in_days = 7
 }
 
-# ECS Task Definition
-resource "aws_ecs_task_definition" "main" {
-  family                   = var.app_name
-  network_mode             = "awsvpc"
+resource "aws_ecs_task_definition" "task" {
+  family                   = "${var.app_name}-task"
   requires_compatibilities = ["FARGATE"]
-  cpu                      = var.cpu
-  memory                   = var.memory
-  execution_role_arn       = aws_iam_role.ecs_execution.arn
-  task_role_arn            = aws_iam_role.ecs_task.arn
+  network_mode             = "awsvpc"
 
-  container_definitions = jsonencode([
-    {
-      name  = var.app_name
-      image = "${aws_ecr_repository.main.repository_url}:latest"
+  cpu    = "512"
+  memory = "1024"
 
-      portMappings = [
-        {
-          containerPort = var.container_port
-          hostPort      = var.container_port
-          protocol      = "tcp"
-        }
-      ]
+  execution_role_arn = aws_iam_role.ecs_execution.arn
+  task_role_arn      = aws_iam_role.ecs_task.arn
 
-      environment = [
-        {
-          name  = "DATABASE_URL"
-          value = "postgresql://${var.db_username}:${var.db_password}@${aws_db_instance.main.endpoint}/${var.db_name}"
-        },
-        {
-          name  = "FLASK_ENV"
-          value = "production"
-        }
-      ]
+  container_definitions = jsonencode([{
+    name  = "flask"
+    image = "${aws_ecr_repository.repo.repository_url}:latest"
 
-      secrets = [
-        {
-          name      = "JWT_SECRET_KEY"
-          valueFrom = aws_secretsmanager_secret.jwt_secret.arn
-        },
-        {
-          name      = "GEMINI_API_KEY"
-          valueFrom = aws_secretsmanager_secret.gemini_api_key.arn
-        },
-        {
-          name      = "PAYSTACK_SECRET_KEY"
-          valueFrom = aws_secretsmanager_secret.paystack_secret.arn
-        },
-        {
-          name      = "PAYSTACK_PK_KEY"
-          valueFrom = aws_secretsmanager_secret.paystack_pk.arn
-        },
-        {
-          name      = "PAYPAL_CLIENT_ID"
-          valueFrom = aws_secretsmanager_secret.paypal_client_id.arn
-        },
-        {
-          name      = "PAYPAL_CLIENT_SECRET"
-          valueFrom = aws_secretsmanager_secret.paypal_client_secret.arn
-        }
-      ]
+    portMappings = [{
+      containerPort = 5000
+      hostPort      = 5000
+    }]
 
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          "awslogs-group"         = aws_cloudwatch_log_group.ecs.name
-          "awslogs-region"        = data.aws_region.current.name
-          "awslogs-stream-prefix" = "ecs"
-        }
+
+    environment = [
+      {
+        name  = "DATABASE_URL"
+        value = "postgresql://${var.db_username}:${var.db_password}@${aws_db_instance.postgres.address}:5432/appdb"
+      },
+
+      {
+        name  = "OPENAI_API_KEY"
+        value = "${var.openai_api_key}"
+      },
+      {
+        name  = "OPENROUTER_API_KEY"
+        value = "${var.openrouter_api_key}"
+      },
+      {
+        name  = "PAYSTACK_SECRET_KEY"
+        value = "${var.paystack_secret_key}"
+      },
+      {
+        name  = "PAYSTACK_PK_KEY"
+        value = "${var.paystack_pk_key}"
+      },
+      {
+        name  = "PAYSTACK_CALLBACK_URL"
+        value = "${var.paystack_callback_url}"
+      },
+
+      {
+        name  = "PAYPAL_CLIENT_ID"
+        value = "${var.paypal_client_id}"
+      },
+      {
+        name  = "PAYPAL_CLIENT_SECRET"
+        value = "${var.paypal_secret_key}"
+      },
+
+      {
+        name  = "JWT_SECRET_KEY"
+        value = "${var.jwt_secret_key}"
       }
+      
+    ]
 
-      healthCheck = {
-        command = [
-          "CMD-SHELL",
-          "curl -f http://localhost:${var.container_port}${var.health_check_path} || exit 1"
-        ]
-        interval    = 30
-        timeout     = 5
-        retries     = 3
-        startPeriod = 60
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        awslogs-group         = aws_cloudwatch_log_group.logs.name
+        awslogs-region        = var.aws_region
+        awslogs-stream-prefix = "ecs"
       }
     }
-  ])
-
-  tags = {
-    Name = "${var.app_name}-task"
-  }
+  }])
 }
 
-# ECS Service
-resource "aws_ecs_service" "main" {
+resource "aws_ecs_service" "service" {
   name            = "${var.app_name}-service"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.main.arn
-  desired_count   = var.desired_count
-  launch_type     = "FARGATE"
+  cluster         = aws_ecs_cluster.cluster.id
+  task_definition = aws_ecs_task_definition.task.arn
+  desired_count   = 1
+
+  launch_type = "FARGATE"
 
   network_configuration {
-    security_groups  = [aws_security_group.ecs.id]
-    subnets          = aws_subnet.private[*].id
-    assign_public_ip = false
+    subnets         = module.vpc.private_subnets
+    security_groups = [aws_security_group.app.id]
   }
 
   load_balancer {
-    target_group_arn = aws_lb_target_group.main.arn
-    container_name   = var.app_name
-    container_port   = var.container_port
+    target_group_arn = aws_lb_target_group.tg.arn
+    container_name   = "flask"
+    container_port   = 5000
   }
 
-  depends_on = [aws_lb_listener.main]
-
-  tags = {
-    Name = "${var.app_name}-service"
-  }
-
-  # Enable rolling updates
-  deployment_controller {
-    type = "ECS"
-  }
-
-  # Health check grace period
-  health_check_grace_period_seconds = 60
+  depends_on = [aws_lb_listener.listener]
 }

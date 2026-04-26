@@ -4,6 +4,9 @@ import AlertModal from "../components/AlertModal";
 import LoginModal from "../components/auth/LoginModal";
 import { AUTH_CONSTANTS } from "../constants/auth_constants";
 
+const BASE_URL =
+  "http://ats-matcher-backend-alb-1819594825.eu-west-2.elb.amazonaws.com/api";
+
 const SubscriptionPage = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
@@ -37,7 +40,7 @@ const SubscriptionPage = () => {
 
   const verifyAuth = async (token) => {
     try {
-      const response = await fetch("http://127.0.0.1:5000/api/auth/verify", {
+      const response = await fetch(`${BASE_URL}/auth/verify`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!response.ok) {
@@ -62,7 +65,7 @@ const SubscriptionPage = () => {
 
   const fetchPaymentConfig = async () => {
     try {
-      const response = await fetch("http://127.0.0.1:5000/api/payment/config");
+      const response = await fetch(`${BASE_URL}/payment/config`);
       if (response.ok) {
         const data = await response.json();
         setPaymentConfig(data);
@@ -96,17 +99,14 @@ const SubscriptionPage = () => {
 
     setLoading(true);
     try {
-      const response = await fetch(
-        "http://127.0.0.1:5000/api/subscription/upgrade",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ plan_type: planType, gateway }),
+      const response = await fetch(`${BASE_URL}/subscription/upgrade`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
-      );
+        body: JSON.stringify({ plan_type: planType, gateway }),
+      });
 
       const data = await response.json();
       if (!response.ok) {
