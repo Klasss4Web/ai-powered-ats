@@ -45,7 +45,7 @@ except Exception as e:
 # ---------------------------
 # LLM CALL WRAPPER
 # ---------------------------
-async def llm_call(prompt):
+def llm_call(prompt):
     if not model:
         raise RuntimeError("LLM model not initialized")
     
