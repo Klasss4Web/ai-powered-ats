@@ -11,4 +11,5 @@ psycopg
 psycopg[binary]
 bcrypt
 openai
+openai-agents
 gunicorn

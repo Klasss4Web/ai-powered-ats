@@ -12,20 +12,28 @@ from flask import jsonify, g, request, send_file
 from db.database import get_db
 from routes.usage import check_usage_limit, record_usage
 from config import MAX_SAVED_RESUMES, MAX_BATCH_RESUMES
-from openai import OpenAI
+from openai import OpenAI, AsyncOpenAI
+from agents import Agent, Runner, trace, function_tool, OpenAIChatCompletionsModel
 
 
 # ---------------------------
 # LLM INITIALIZATION
 # ---------------------------
+
+
 try:
     api_key = os.getenv("OPENROUTER_API_KEY")
+
+    
     
     if api_key:
         model = OpenAI(
             base_url="https://openrouter.ai/api/v1",
             api_key=api_key
         )
+        # client = AsyncOpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
+
+        # model = OpenAIChatCompletionsModel(model="deepseek-chat", openai_client=client)
     else:
         model = None
 
@@ -37,9 +45,11 @@ except Exception as e:
 # ---------------------------
 # LLM CALL WRAPPER
 # ---------------------------
-def llm_call(prompt):
+async def llm_call(prompt):
     if not model:
         raise RuntimeError("LLM model not initialized")
+    
+    message=[{"role": "user", "content": prompt}]
 
     response = model.chat.completions.create(
         messages=[{"role": "user", "content": prompt}],
@@ -47,6 +57,10 @@ def llm_call(prompt):
     )
 
     return response.choices[0].message.content
+
+    # with trace("Protected Automated SDR"):
+    #     result = await Runner.run(model, message)
+    #     return result.final_output
 
 
 # ---------------------------

@@ -124,14 +124,14 @@ variable "paypal_secret_key" {
 variable "frontend_url" {
   description = "paypal client secret key for calling paypal paypal"
   type        = string
-  default     = "http://localhost:5173"
+  default     = "https://ats-tracker-git-master-ochade-emmanuels-projects.vercel.app"
   sensitive   = false
 }
 
 variable "paystack_callback_url" {
   description = "paypal client secret key for calling paypal paypal"
   type        = string
-  default     = "http://localhost:5173/matcher"
+  default     = "https://ats-tracker-git-master-ochade-emmanuels-projects.vercel.app/matcher"
   sensitive   = false
 }
 
