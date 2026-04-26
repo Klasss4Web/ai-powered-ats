@@ -13,8 +13,8 @@ jobs:
       - name: Configure AWS
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-west-2
 
       - name: Terraform Init
@@ -24,3 +24,10 @@ jobs:
       - name: Terraform Destroy
         working-directory: terraform
         run: terraform destroy -auto-approve
+
+      - name: Cleanup ECR Images (optional)
+        run: |
+          aws ecr batch-delete-image \
+            --repository-name "ats-matcher-backend-repo" \
+            --image-ids $(aws ecr list-images --repository-name "ats-matcher-backend-repo" --query 'imageIds[*]' --output json)
+        continue-on-error: true

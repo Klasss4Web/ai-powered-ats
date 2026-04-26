@@ -22,20 +22,18 @@ jobs:
       - name: Configure AWS
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
       # =========================
-      # LOAD INFRASTRUCTURE VALUES (SSM)
+      # LOAD INFRASTRUCTURE VALUES (from .env or hardcoded)
       # =========================
-      - name: Load infra outputs from SSM
+      - name: Load infra outputs
         run: |
-          set -e
-
-          echo "ECR_REPO=$(aws ssm get-parameter --name /$APP_NAME/ecr_repo --query Parameter.Value --output text)" >> $GITHUB_ENV
-          echo "ECS_CLUSTER=$(aws ssm get-parameter --name /$APP_NAME/ecs_cluster --query Parameter.Value --output text)" >> $GITHUB_ENV
-          echo "ECS_SERVICE=$(aws ssm get-parameter --name /$APP_NAME/ecs_service --query Parameter.Value --output text)" >> $GITHUB_ENV
+          echo "ECR_REPO=${{ secrets.ECR_REPO || '717691231443.dkr.ecr.eu-west-2.amazonaws.com/ats-matcher-backend-repo' }}" >> $GITHUB_ENV
+          echo "ECS_CLUSTER=${{ secrets.ECS_CLUSTER || 'ats-matcher-backend-cluster' }}" >> $GITHUB_ENV
+          echo "ECS_SERVICE=${{ secrets.ECS_SERVICE || 'ats-matcher-backend-service' }}" >> $GITHUB_ENV
 
       # =========================
       # LOGIN TO ECR
