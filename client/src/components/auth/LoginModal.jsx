@@ -57,7 +57,7 @@ const LoginModal = ({ isOpen, onClose, onLogin }) => {
       const endpoint = isRegister ? "register" : "login";
       const body = isRegister ? { email, password, name } : { email, password };
 
-      const response = await fetch(`/api/auth/${endpoint}`, {
+      const response = await fetch(`${BASE_URL}/auth/${endpoint}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -131,7 +131,7 @@ const LoginModal = ({ isOpen, onClose, onLogin }) => {
     setIsForgotLoading(true);
 
     try {
-      const response = await fetch(`/api/auth/forgot-password`, {
+      const response = await fetch(`${BASE_URL}/auth/forgot-password`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
