@@ -35,7 +35,7 @@ try:
         )
         # client = AsyncOpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
 
-        # model = OpenAIChatCompletionsModel(model="deepseek-chat", openai_client=client)
+        # model = OpenAIChatCompletionsModel(model="openai/gpt-4o", openai_client=client)
     else:
         model = None
 
@@ -55,12 +55,13 @@ def llm_call(prompt):
 
     response = model.chat.completions.create(
         messages=[{"role": "user", "content": prompt}],
-        model="openai/gpt-4o"
+        model="openai/gpt-4o",
+        timeout=60,
     )
 
     return response.choices[0].message.content
 
-    # with trace("Protected Automated SDR"):
+    # with trace("ATS Match"):
     #     result = await Runner.run(model, message)
     #     return result.final_output
 
