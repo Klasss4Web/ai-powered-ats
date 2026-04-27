@@ -17,7 +17,6 @@ import os
 app = Flask(__name__)
 CORS(app)
 
-
 # Register teardown
 app.teardown_appcontext(close_db_connection)
 

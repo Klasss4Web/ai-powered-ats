@@ -49,7 +49,7 @@ def llm_call(prompt):
     if not model:
         raise RuntimeError("LLM model not initialized")
     
-    message=[{"role": "user", "content": prompt}]
+    # message=[{"role": "user", "content": prompt}]
 
     response = model.chat.completions.create(
         messages=[{"role": "user", "content": prompt}],
