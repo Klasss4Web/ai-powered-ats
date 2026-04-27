@@ -4,7 +4,7 @@ import UserAvatar from "../components/UserAvatar";
 import UsageStatus from "../components/UsageStatus";
 import UpgradeModal from "../components/UpgradeModal";
 import LoginModal from "../components/auth/LoginModal";
-import { AUTH_CONSTANTS } from "../constants/auth_constants";
+import { AUTH_CONSTANTS, BASE_URL } from "../constants/auth_constants";
 import AnimatedLoader from "../components/loaders/animated-loader/AnimatedLoader";
 
 const RecruitersView = () => {
@@ -76,7 +76,7 @@ const RecruitersView = () => {
 
   const verifyAuth = async (token) => {
     try {
-      const response = await fetch("http://127.0.0.1:5000/api/auth/verify", {
+      const response = await fetch(`${BASE_URL}/auth/verify`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
@@ -98,7 +98,7 @@ const RecruitersView = () => {
     setLoadingUsage(true);
     try {
       const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
-      const response = await fetch("http://127.0.0.1:5000/api/user/usage", {
+      const response = await fetch(`${BASE_URL}/user/usage`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
@@ -152,7 +152,7 @@ const RecruitersView = () => {
 
     try {
       const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
-      const response = await fetch("http://127.0.0.1:5000/api/batch-match", {
+      const response = await fetch(`${BASE_URL}/batch-match`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,

@@ -10,11 +10,8 @@ import LoginModal from "../components/auth/LoginModal";
 import { AUTH_CONSTANTS, BASE_URL } from "../constants/auth_constants";
 import AnimatedLoader from "../components/loaders/animated-loader/AnimatedLoader";
 
-// const BASE_URL =
-//   "http://ats-matcher-backend-alb-1819594825.eu-west-2.elb.amazonaws.com/api";
-
 const ATSMatcher = () => {
-  const showOtherFeatures = false; // Toggle to show/hide extended features
+  const showOtherFeatures = false;
   const pendingAnalysis = localStorage.getItem("pendingAnalysis");
   const [resumeFile, setResumeFile] = useState(null);
   const [jobDescription, setJobDescription] = useState(

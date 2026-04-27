@@ -9,9 +9,6 @@ const ResetPasswordPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState("");
 
-  // const BASE_URL =
-  //   "http://ats-matcher-backend-alb-1819594825.eu-west-2.elb.amazonaws.com/api";
-
   const token = searchParams.get("token");
 
   useEffect(() => {
