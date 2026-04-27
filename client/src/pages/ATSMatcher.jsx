@@ -970,7 +970,7 @@ const ATSMatcher = () => {
       <form onSubmit={handleSubmission} style={styles.inputSection}>
         {/* Resume Uploader */}
         <div style={styles.inputGroup}>
-          <h3>1. Select Resume Source</h3>
+          <h3 className="section-title">1. Select Resume Source</h3>
           <div style={{ display: "flex", gap: "20px", marginBottom: "20px" }}>
             <div
               style={{
@@ -1067,7 +1067,7 @@ const ATSMatcher = () => {
 
         {/* Job Description Input */}
         <div style={styles.inputGroup}>
-          <h3>2. Paste Job Requirements</h3>
+          <h3 className="section-title">2. Paste Job Requirements</h3>
           <textarea
             placeholder="Paste the full job description here..."
             value={jobDescription}
@@ -1156,7 +1156,7 @@ const ATSMatcher = () => {
 
           {/* Recommendations */}
           <div style={styles.recommendationBox}>
-            <h3>🎯 Recommendation Summary</h3>
+            <h3 className="section-title">🎯 Recommendation Summary</h3>
             <blockquote style={styles.blockquote}>
               {results.recommendation_text}
             </blockquote>
@@ -1166,7 +1166,9 @@ const ATSMatcher = () => {
           <div style={styles.skillsContainer}>
             {/* Matched Skills */}
             <div style={styles.skillList}>
-              <h3>👍 Skills Matched ({results.matched_skills.length})</h3>
+              <h3 className="section-title">
+                👍 Skills Matched ({results.matched_skills.length})
+              </h3>
               <div style={styles.tagGroup} className="drop-down-container">
                 {results.matched_skills.map((skill, index) => (
                   <span
@@ -1182,7 +1184,9 @@ const ATSMatcher = () => {
 
             {/* Missing Skills */}
             <div style={styles.skillList}>
-              <h3>⚠️ Missing Key Skills ({results.missing_skills.length})</h3>
+              <h3 className="section-title">
+                ⚠️ Missing Key Skills ({results.missing_skills.length})
+              </h3>
               <div style={styles.tagGroup} className="drop-down-container">
                 {results.missing_skills.map((skill, index) => (
                   <span
@@ -1202,7 +1206,7 @@ const ATSMatcher = () => {
               {results.keyword_gap_analysis &&
                 Object.keys(results.keyword_gap_analysis).length > 0 && (
                   <div style={styles.gapAnalysisSection}>
-                    <h3>🔍 Keyword Gap Analyzer</h3>
+                    <h3 className="section-title">🔍 Keyword Gap Analyzer</h3>
                     <div style={styles.gapGrid}>
                       {Object.entries(results.keyword_gap_analysis).map(
                         ([skill, section], index) => (
@@ -1230,7 +1234,9 @@ const ATSMatcher = () => {
               {results.weakly_represented_skills &&
                 results.weakly_represented_skills.length > 0 && (
                   <div style={styles.analysisSection}>
-                    <h3>📊 Weakly Represented Skills</h3>
+                    <h3 className="section-title">
+                      📊 Weakly Represented Skills
+                    </h3>
                     <p style={{ color: "#666", marginBottom: "10px" }}>
                       These skills appear but could be emphasized more:
                     </p>
@@ -1247,7 +1253,7 @@ const ATSMatcher = () => {
               {/* Overused Terms */}
               {results.overused_terms && results.overused_terms.length > 0 && (
                 <div style={styles.analysisSection}>
-                  <h3>⚡ Overused Terms</h3>
+                  <h3 className="section-title">⚡ Overused Terms</h3>
                   <p style={{ color: "#666", marginBottom: "10px" }}>
                     Consider varying these repeated words/phrases:
                   </p>
@@ -1265,7 +1271,9 @@ const ATSMatcher = () => {
               {results.add_to_resume_suggestions &&
                 results.add_to_resume_suggestions.length > 0 && (
                   <div style={styles.suggestionsSection}>
-                    <h3>💡 "Add to Resume" Suggestions</h3>
+                    <h3 className="section-title">
+                      💡 "Add to Resume" Suggestions
+                    </h3>
                     <p style={{ color: "#666", marginBottom: "10px" }}>
                       Consider adding these bullet points to strengthen your
                       resume:
@@ -1387,7 +1395,7 @@ const ATSMatcher = () => {
             <div style={styles.modalBody}>
               {/* All Metric Scores */}
               <section style={styles.modalSection}>
-                <h3>📈 Detailed Scores</h3>
+                <h3 className="section-title">📈 Detailed Scores</h3>
                 <div style={styles.scoresGrid}>
                   <div style={styles.scoreItem}>
                     <span style={styles.scoreLabel}>Overall Match:</span>
@@ -1444,7 +1452,7 @@ const ATSMatcher = () => {
 
               {/* Matched Skills */}
               <section style={styles.modalSection}>
-                <h3>
+                <h3 className="section-title">
                   👍 Matched Skills ({results.matched_skills?.length || 0})
                 </h3>
                 <div style={styles.tagGroup}>
@@ -1458,7 +1466,7 @@ const ATSMatcher = () => {
 
               {/* Missing Skills */}
               <section style={styles.modalSection}>
-                <h3>
+                <h3 className="section-title">
                   ⚠️ Missing Key Skills ({results.missing_skills?.length || 0})
                 </h3>
                 <div style={styles.tagGroup}>
@@ -1474,7 +1482,7 @@ const ATSMatcher = () => {
               {results.keyword_gap_analysis &&
                 Object.keys(results.keyword_gap_analysis).length > 0 && (
                   <section style={styles.modalSection}>
-                    <h3>🔍 Keyword Gap Analyzer</h3>
+                    <h3 className="section-title">🔍 Keyword Gap Analyzer</h3>
                     <div style={styles.gapGrid}>
                       {Object.entries(results.keyword_gap_analysis).map(
                         ([skill, section], index) => (
@@ -1502,7 +1510,7 @@ const ATSMatcher = () => {
               {results.weakly_represented_skills &&
                 results.weakly_represented_skills.length > 0 && (
                   <section style={styles.modalSection}>
-                    <h3>
+                    <h3 className="section-title">
                       📊 Weakly Represented Skills (
                       {results.weakly_represented_skills.length})
                     </h3>
@@ -1522,7 +1530,9 @@ const ATSMatcher = () => {
               {/* Overused Terms */}
               {results.overused_terms && results.overused_terms.length > 0 && (
                 <section style={styles.modalSection}>
-                  <h3>⚡ Overused Terms ({results.overused_terms.length})</h3>
+                  <h3 className="section-title">
+                    ⚡ Overused Terms ({results.overused_terms.length})
+                  </h3>
                   <p style={{ color: "#666", marginBottom: "10px" }}>
                     Consider varying these repeated words/phrases:
                   </p>
@@ -1540,7 +1550,7 @@ const ATSMatcher = () => {
               {results.add_to_resume_suggestions &&
                 results.add_to_resume_suggestions.length > 0 && (
                   <section style={styles.modalSection}>
-                    <h3>
+                    <h3 className="section-title">
                       💡 "Add to Resume" Suggestions (
                       {results.add_to_resume_suggestions.length})
                     </h3>
@@ -1562,7 +1572,7 @@ const ATSMatcher = () => {
 
               {/* Recommendation Text */}
               <section style={styles.modalSection}>
-                <h3>🎯 Recommendation</h3>
+                <h3 className="section-title">🎯 Recommendation</h3>
                 <blockquote style={styles.blockquote}>
                   {results.recommendation_text}
                 </blockquote>
