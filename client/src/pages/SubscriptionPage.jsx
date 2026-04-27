@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import AlertModal from "../components/AlertModal";
 import LoginModal from "../components/auth/LoginModal";
-import { AUTH_CONSTANTS } from "../constants/auth_constants";
+import { AUTH_CONSTANTS, BASE_URL } from "../constants/auth_constants";
 
-const BASE_URL =
-  "http://ats-matcher-backend-alb-1819594825.eu-west-2.elb.amazonaws.com/api";
+// const BASE_URL =
+//   "http://ats-matcher-backend-alb-1819594825.eu-west-2.elb.amazonaws.com/api";
 
 const SubscriptionPage = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);

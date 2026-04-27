@@ -29,7 +29,9 @@ try:
     if api_key:
         model = OpenAI(
             base_url="https://openrouter.ai/api/v1",
-            api_key=api_key
+            api_key=api_key,
+            timeout=60.0,
+            max_retries=3
         )
         # client = AsyncOpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_key)
 
@@ -53,7 +55,7 @@ def llm_call(prompt):
 
     response = model.chat.completions.create(
         messages=[{"role": "user", "content": prompt}],
-        model="gpt-5-nano"
+        model="openai/gpt-4o"
     )
 
     return response.choices[0].message.content

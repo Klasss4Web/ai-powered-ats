@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { AUTH_CONSTANTS } from "../../constants/auth_constants";
+import { AUTH_CONSTANTS, BASE_URL } from "../../constants/auth_constants";
 
-const BASE_URL =
-  "http://ats-matcher-backend-alb-1819594825.eu-west-2.elb.amazonaws.com/api";
+// const BASE_URL =
+//   "http://ats-matcher-backend-alb-1819594825.eu-west-2.elb.amazonaws.com/api";
 
 const LoginModal = ({ isOpen, onClose, onLogin }) => {
   const [email, setEmail] = useState("");

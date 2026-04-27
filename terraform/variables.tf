@@ -58,8 +58,8 @@ variable "cpu" {
   default     = 256
 }
 
-variable "memory" {
-  description = "ECS task memory"
+variable "atsmatcher" {
+  description = "ECS task atsmatcher"
   type        = number
   default     = 512
 }
@@ -135,3 +135,44 @@ variable "paystack_callback_url" {
   sensitive   = false
 }
 
+
+
+variable "project_name" {
+  description = "Name prefix for all resources"
+  type        = string
+  validation {
+    condition     = can(regex("^[a-z0-9-]+$", var.project_name))
+    error_message = "Project name must contain only lowercase letters, numbers, and hyphens."
+  }
+}
+
+
+variable "lambda_timeout" {
+  description = "Lambda function timeout in seconds"
+  type        = number
+  default     = 60
+}
+
+variable "api_throttle_burst_limit" {
+  description = "API Gateway throttle burst limit"
+  type        = number
+  default     = 10
+}
+
+variable "api_throttle_rate_limit" {
+  description = "API Gateway throttle rate limit"
+  type        = number
+  default     = 5
+}
+
+variable "use_custom_domain" {
+  description = "Attach a custom domain to CloudFront"
+  type        = bool
+  default     = false
+}
+
+variable "root_domain" {
+  description = "Apex domain name, e.g. mydomain.com"
+  type        = string
+  default     = ""
+}
