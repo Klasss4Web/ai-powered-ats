@@ -51,6 +51,29 @@ python app.py
 
 - The backend runs at: `http://localhost:5000`
 
+### Running Tests & Coverage
+
+All backend tests are in `backend/tests/` and are designed to run without a real database or external services (mocks are used).
+
+To run all tests and see a coverage report, use:
+
+```sh
+cd backend
+run_tests.bat
+```
+
+Or manually:
+
+```sh
+.venv\Scripts\activate
+.venv\Scripts\python.exe -m coverage run -m unittest discover -s tests
+.venv\Scripts\python.exe -m coverage report
+```
+
+Add new tests in `backend/tests/`. Each test file should start with `test_`.
+
+---
+
 ### Run with Docker
 
 ```sh

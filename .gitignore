@@ -22,3 +22,7 @@ backend/**/*_lambda.zip
 # But do include the scheduler
 !backend/scheduler/lambda_function.zip
 !frontend/lib
+
+__pycache__/
+*.py[cod]
+.venv/
