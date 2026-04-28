@@ -1,6 +1,32 @@
 # ATS Matcher - AWS Infrastructure & Deployment
 
+---
+
+**See also:**
+
+- [Project Setup & Running Guide (README.md)](./README.md)
+- [architectural decision Overview (architectural_decision.md)](./architectural_decision.md)
+
 This repository contains the infrastructure-as-code for deploying the ATS Matcher backend to AWS using Terraform and GitHub Actions for CI/CD.
+
+## 🌍 Hosting Strategy
+
+- **AWS** is the primary hosting platform for production deployments of the backend and infrastructure. Use AWS for scaling, reliability, and mainline traffic.
+- A backup/test server for the backend is deployed on **Render**. This environment is used for cost-effective testing, staging, and backup purposes.
+- Render is not intended for production-scale workloads but is useful for development, QA, and as a fallback during AWS maintenance or cost management.
+
+### Deployment Strategy
+
+- Deploy to AWS for production and high-availability needs.
+- Use Render for:
+  - Testing new features
+  - Staging environments
+  - Cost management during low-traffic periods
+  - Backup/failover if AWS is unavailable
+
+Monitor usage and costs on both platforms. Switch primary traffic to AWS as the project scales or for production launches. Keep Render deployments up-to-date with mainline code for seamless failover/testing.
+
+---
 
 ## 🏗️ Architecture Overview
 

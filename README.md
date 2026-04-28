@@ -1,5 +1,12 @@
 # ATS Matcher - Project Setup & Running Guide
 
+---
+
+**See also:**
+
+- [Infrastructure & Deployment (infrastructure.md)](./infrastructure.md)
+- [architectural decision Overview (architectural_decision.md)](./architectural_decision.md)
+
 This guide explains how to set up, run, and develop the ATS Matcher application (backend + frontend) locally and in production.
 
 ---

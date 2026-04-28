@@ -14,7 +14,7 @@ from db.database import get_db
 from routes.usage import check_usage_limit, record_usage
 from config import MAX_SAVED_RESUMES, MAX_BATCH_RESUMES
 from openai import OpenAI, AsyncOpenAI
-from agents import Agent, Runner, trace, function_tool, OpenAIChatCompletionsModel
+# from agents import Agent, Runner, trace, function_tool, OpenAIChatCompletionsModel
 
 
 # ---------------------------
