@@ -55,12 +55,16 @@ python app.py
 
 All backend tests are in `backend/tests/` and are designed to run without a real database or external services (mocks are used).
 
-To run all tests and see a coverage report, use:
+To run all tests and see a coverage report:
 
-```sh
-cd backend
-run_tests.bat
-```
+- On **Windows** (from the backend directory):
+  ```sh
+  scripts\run_tests.bat
+  ```
+- On **Linux/macOS/Git Bash** (from the backend directory):
+  ```sh
+  ./scripts/run_tests.sh
+  ```
 
 Or manually:
 
