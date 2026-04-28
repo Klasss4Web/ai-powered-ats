@@ -3,6 +3,7 @@ Usage tracking and limits for ATS Matcher Backend (PostgreSQL)
 """
 
 import datetime
+from logger.app_logger import logger
 import json
 from flask import jsonify, g, request
 from db.database import get_db
@@ -83,7 +84,7 @@ def record_usage(user_id, action_type='analysis', metadata=None):
         )
         db.commit()
     except Exception as e:
-        print("Usage insert error:", e)
+        logger.error(f"Usage insert error: {e}")
 
 
 def register_usage_routes(app):
@@ -153,7 +154,7 @@ def register_usage_routes(app):
             }), 200
 
         except Exception as e:
-            print("Usage check error:", e)
+            logger.error(f"Usage check error: {e}")
             return jsonify({'error': 'Internal server error'}), 500
 
 

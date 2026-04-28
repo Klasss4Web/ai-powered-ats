@@ -3,6 +3,7 @@ Resume processing, generation, and matching for ATS Matcher Backend (PostgreSQL)
 """
 
 import json
+from logger.app_logger import logger
 import os
 import datetime
 import PyPDF2
@@ -40,7 +41,7 @@ try:
         model = None
 
 except Exception as e:
-    print(f"ERROR initializing LLM client: {e}")
+    logger.error(f"ERROR initializing LLM client: {e}")
     model = None
 
 
@@ -82,7 +83,7 @@ def extract_text_from_pdf(pdf_stream):
         return text
 
     except Exception as e:
-        print(f"PDF extraction error: {e}")
+        logger.error(f"PDF extraction error: {e}")
         return None
 
 
@@ -126,7 +127,7 @@ def generate_standard_resume_pdf(resume_text):
         parsed_data = json.loads(json_string)
 
     except Exception as e:
-        print(f"Parsing error: {e}")
+        logger.error(f"Parsing error: {e}")
         parsed_data = {
             "name": "Professional Name",
             "contact": {},

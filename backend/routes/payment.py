@@ -3,6 +3,7 @@ Payment integration for ATS Matcher Backend (Paystack and PayPal)
 """
 
 import json
+from logger.app_logger import logger
 import datetime
 import requests
 from flask import jsonify, g, request
@@ -26,7 +27,7 @@ def get_paypal_access_token():
         response.raise_for_status()
         return response.json()['access_token']
     except Exception as e:
-        print(f"PayPal auth error: {e}")
+        logger.error(f"PayPal auth error: {e}")
         return None
 
 
@@ -134,14 +135,14 @@ def register_payment_routes(app):
                     return jsonify({'error': 'Payment initialization failed', 'details': result}), 400
 
         except Exception as e:
-            print(f"Payment initialization error: {e}")
+            logger.error(f"Payment initialization error: {e}")
             return jsonify({'error': 'Payment initialization failed'}), 500
 
     @app.route('/api/payment/verify/<reference>', methods=['GET'])
     @token_required
     def verify_payment(reference):
         """Verify a payment transaction with Paystack."""
-        print(f"Paystack verification called for reference: {reference}, user: {g.user_id}")
+        logger.info(f"Paystack verification called for reference: {reference}, user: {g.user_id}")
         try:
             if not PAYSTACK_SECRET_KEY:
                 return jsonify({'error': 'Payment service not configured'}), 500
@@ -153,7 +154,7 @@ def register_payment_routes(app):
 
             response = requests.get(url, headers=headers)
             result = response.json()
-            print(f"Paystack API response: {result}")
+            logger.debug(f"Paystack API response: {result}")
 
             if response.status_code == 200 and result.get('status') and result.get('data', {}).get('status') == 'success':
                 # Get payment metadata
@@ -191,7 +192,7 @@ def register_payment_routes(app):
                         ''', (expires_at.isoformat(), g.user_id))
 
                         db.commit()
-                        print(f"User upgraded to premium ({plan_type})")
+                        logger.info(f"User upgraded to premium ({plan_type})")
                     else:
                         # Record pay-as-you-go payment
                         amount_naira = result.get('data', {}).get('amount')
@@ -207,24 +208,24 @@ def register_payment_routes(app):
                         })))
 
                         db.commit()
-                        print("Payment recorded successfully")
+                        logger.info("Payment recorded successfully")
                 else:
-                    print("Payment already processed, skipping duplicate")
+                    logger.info("Payment already processed, skipping duplicate")
                 
                 return jsonify(result), 200
             else:
-                print(f"Payment verification failed: {result}")
+                logger.warning(f"Payment verification failed: {result}")
                 return jsonify({'error': 'Payment verification failed', 'details': result}), 400
 
         except Exception as e:
-            print(f"Payment verification error: {e}")
+            logger.error(f"Payment verification error: {e}")
             return jsonify({'error': 'Payment verification failed'}), 500
 
     @app.route('/api/payment/manual-verify/<reference>', methods=['POST'])
     @token_required
     def manual_verify_payment(reference):
         """Manually verify a payment transaction (for debugging)."""
-        print(f"Manual verification called for reference: {reference}, user: {g.user_id}")
+        logger.info(f"Manual verification called for reference: {reference}, user: {g.user_id}")
         try:
             data = request.get_json()
             gateway = data.get('gateway', 'paystack')
@@ -237,7 +238,7 @@ def register_payment_routes(app):
                 return verify_payment(reference)
 
         except Exception as e:
-            print(f"Manual verification error: {e}")
+            logger.error(f"Manual verification error: {e}")
             return jsonify({'error': 'Manual verification failed'}), 500
 
     @app.route('/api/payment/verify-paypal/<order_id>', methods=['GET'])

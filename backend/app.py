@@ -12,7 +12,13 @@ from auth.auth import register_auth_routes
 from routes.payment import register_payment_routes
 from routes.usage import register_usage_routes
 from routes.resume import register_resume_routes
+
 import os
+
+from logger.app_logger import logger
+
+
+
 
 app = Flask(__name__)
 CORS(app)
@@ -21,9 +27,10 @@ CORS(app)
 app.teardown_appcontext(close_db_connection)
 
 
+
 with app.app_context():
     init_db(app)
-    print("Database initialized successfully.")
+    logger.info("Database initialized successfully.")
 
 
 
@@ -57,5 +64,5 @@ register_routes(app)
 
 if __name__ == '__main__':
     init_db(app)
-    print("Database initialized successfully.")
+    logger.info("Database initialized successfully.")
     app.run(debug=True, port=5000)

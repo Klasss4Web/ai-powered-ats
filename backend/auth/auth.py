@@ -3,6 +3,7 @@ Authentication utilities and routes for ATS Matcher Backend (PostgreSQL + bcrypt
 """
 
 import jwt
+from logger.app_logger import logger
 import datetime
 import secrets
 import bcrypt
@@ -135,7 +136,7 @@ def register_auth_routes(app):
             }), 201
 
         except Exception as e:
-            print("Registration error:", e)
+            logger.error(f"Registration error: {e}")
             return jsonify({'error': 'Internal server error'}), 500
 
 
@@ -176,7 +177,7 @@ def register_auth_routes(app):
             }), 200
 
         except Exception as e:
-            print("Login error:", e)
+            logger.error(f"Login error: {e}")
             return jsonify({'error': 'Internal server error'}), 500
 
 
@@ -229,12 +230,12 @@ def register_auth_routes(app):
             )
             db.commit()
 
-            print(f"Reset token: {reset_token}")
+            logger.info(f"Reset token: {reset_token}")
 
             return jsonify({'message': 'If the email exists, a reset link has been sent.'}), 200
 
         except Exception as e:
-            print("Forgot password error:", e)
+            logger.error(f"Forgot password error: {e}")
             return jsonify({'error': 'Internal server error'}), 500
 
 
@@ -282,5 +283,5 @@ def register_auth_routes(app):
             return jsonify({'message': 'Password reset successful'}), 200
 
         except Exception as e:
-            print("Reset password error:", e)
+            logger.error(f"Reset password error: {e}")
             return jsonify({'error': 'Internal server error'}), 500
