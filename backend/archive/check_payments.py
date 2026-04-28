@@ -1,3 +1,4 @@
+# Archived: Unused file Previously used when sqlite was the main database for tracking usage and payments. Now we are using DynamoDB, so this file is no longer needed. Keeping it here for reference in case we need to check old records or migrate data in the future.
 import sqlite3
 import json
 conn = sqlite3.connect('ats_matcher.db')
