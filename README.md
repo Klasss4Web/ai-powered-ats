@@ -58,9 +58,15 @@ All backend tests are in `backend/tests/` and are designed to run without a real
 To run all tests and see a coverage report:
 
 - On **Windows** (from the backend directory):
+
   ```sh
   scripts\run_tests.bat
+
+  OR Use the bash command, cd into scripts and run
+
+  bash run_tests.sh
   ```
+
 - On **Linux/macOS/Git Bash** (from the backend directory):
   ```sh
   ./scripts/run_tests.sh
