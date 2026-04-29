@@ -38,8 +38,18 @@ cd ats-matcher
 
 ### 3. Environment Variables
 
-- Copy `.env` files in `backend/` and `client/` (see `.env` samples)
-- Set all required secrets (DB, API keys, JWT, etc.)
+- Copy the provided `.env.example` files to create your own `.env` files in both the `backend/` and `client/` folders:
+
+  ```sh
+  cp backend/.env.example backend/.env
+  cp client/.env.example client/.env
+  ```
+
+  - Update the values in your new `.env` files as needed (e.g., database credentials, API keys, URLs).
+  - **Do not commit your `.env` files.** Only `.env.example` should be tracked in git for reference.
+  - When adding new environment variables, update the corresponding `.env.example` file so collaborators know what is required.
+
+This approach ensures everyone on the team can quickly set up the correct environment variables and helps avoid missing or misconfigured settings.
 
 ---
 
