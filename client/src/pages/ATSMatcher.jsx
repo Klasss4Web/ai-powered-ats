@@ -21,9 +21,32 @@ const ATSMatcher = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [originalResumeText, setOriginalResumeText] = useState("");
+  const [analysisJobDescription, setAnalysisJobDescription] = useState(""); // Store JD used in analysis
   const [showAllAnalysis, setShowAllAnalysis] = useState(false);
   const [downloadingOptimized, setDownloadingOptimized] = useState(false);
   const [downloadingStandard, setDownloadingStandard] = useState(false);
+
+  // Cover letter state
+  const [showCoverLetterModal, setShowCoverLetterModal] = useState(false);
+  const [coverLetter, setCoverLetter] = useState("");
+  const [generatingCoverLetter, setGeneratingCoverLetter] = useState(false);
+  const [coverLetterCopied, setCoverLetterCopied] = useState(false);
+  const [coverLetterMode, setCoverLetterMode] = useState("auto"); // "auto" (from analysis) or "manual"
+  const [coverLetterForm, setCoverLetterForm] = useState({
+    companyName: "",
+    jobTitle: "",
+    jobDescription: "",
+  });
+
+  // Interview prep state
+  const [showInterviewPrepModal, setShowInterviewPrepModal] = useState(false);
+  const [interviewPrep, setInterviewPrep] = useState(null);
+  const [generatingInterviewPrep, setGeneratingInterviewPrep] = useState(false);
+  const [interviewPrepForm, setInterviewPrepForm] = useState({
+    companyName: "",
+    jobTitle: "",
+  });
+  const [activeInterviewTab, setActiveInterviewTab] = useState("questions");
 
   // Authentication state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -253,6 +276,37 @@ const ATSMatcher = () => {
       }
     } catch (error) {
       showAlert("Network error. Please try again.", "error");
+    } finally {
+      setLoadingStates((prev) => ({ ...prev, loadingSavingResume: false }));
+    }
+  };
+
+  // Delete saved resume
+  const deleteResume = async (resumeId, e) => {
+    e.stopPropagation(); // Prevent selecting the resume when clicking delete
+    const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
+
+    try {
+      const response = await fetch(`${BASE_URL}/resumes/${resumeId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        showAlert("Resume deleted successfully!", "success");
+        // Clear selection if deleted resume was selected
+        if (selectedSavedResume?.id === resumeId) {
+          setSelectedSavedResume(null);
+        }
+        fetchSavedResumes();
+      } else {
+        const errorData = await response.json();
+        showAlert(errorData.error || "Failed to delete resume.", "error");
+      }
+    } catch (error) {
+      showAlert("Network error. Please try again.", "error");
     }
   };
 
@@ -401,6 +455,7 @@ const ATSMatcher = () => {
       });
       setResults(data);
       // setResumeFile(null);
+      setAnalysisJobDescription(jobDescription); // Save the JD used in analysis
       setJobDescription("");
       setOriginalResumeText(data.original_resume_text || "");
 
@@ -418,7 +473,7 @@ const ATSMatcher = () => {
     }
   };
 
-  // 3. New function to trigger the DOCX generation and download
+  // 3. New function to trigger the optimized resume generation and download
   const handleDownloadOptimizedCV = async () => {
     if (!results || !originalResumeText) {
       showAlert("Please run the analysis first.", "warning");
@@ -428,7 +483,7 @@ const ATSMatcher = () => {
     setDownloadingOptimized(true);
     try {
       const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
-      const response = await fetch(`${BASE_URL}/generate-cv`, {
+      const response = await fetch(`${BASE_URL}/generate-optimized-resume`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -436,7 +491,18 @@ const ATSMatcher = () => {
         },
         body: JSON.stringify({
           original_resume_text: originalResumeText,
-          missing_skills: results.missing_skills,
+          job_description: analysisJobDescription,
+          // Analysis results
+          missing_skills: results.missing_skills || [],
+          matched_skills: results.matched_skills || [],
+          weakly_represented_skills: results.weakly_represented_skills || [],
+          add_to_resume_suggestions: results.add_to_resume_suggestions || [],
+          keyword_gap_analysis: results.keyword_gap_analysis || {},
+          recommendation_text: results.recommendation_text || "",
+          // Scores for context
+          overall_match_score: results.overall_match_score || 0,
+          keyword_match_score: results.keyword_match_score || 0,
+          skills_alignment_score: results.skills_alignment_score || 0,
         }),
       });
 
@@ -450,7 +516,7 @@ const ATSMatcher = () => {
         const contentDisp =
           response.headers.get("content-disposition") ||
           response.headers.get("Content-Disposition");
-        let filename = "optimized_cv";
+        let filename = "optimized_resume.pdf";
         if (contentDisp) {
           const fileMatch = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(
             contentDisp,
@@ -458,12 +524,6 @@ const ATSMatcher = () => {
           if (fileMatch && fileMatch[1]) {
             filename = decodeURIComponent(fileMatch[1]);
           }
-        } else {
-          const ct = response.headers.get("content-type") || "";
-          if (ct.includes("pdf")) filename = "optimized_cv.pdf";
-          else if (ct.includes("word") || ct.includes("officedocument"))
-            filename = "optimized_cv.docx";
-          else filename = "optimized_cv.bin";
         }
 
         a.download = filename;
@@ -471,12 +531,17 @@ const ATSMatcher = () => {
         a.click();
         a.remove();
         window.URL.revokeObjectURL(url);
-        showAlert("Optimized CV downloaded successfully!", "success");
+        showAlert("Optimized resume downloaded successfully!", "success");
       } else {
-        showAlert("Failed to generate document.", "error");
+        const errorData = await response.json().catch(() => ({}));
+        showAlert(
+          errorData.error || "Failed to generate optimized resume.",
+          "error",
+        );
       }
     } catch (error) {
       console.error("Download error:", error);
+      showAlert("Network error. Please try again.", "error");
     } finally {
       setDownloadingOptimized(false);
     }
@@ -521,6 +586,153 @@ const ATSMatcher = () => {
       console.error("Download error:", error);
     } finally {
       setDownloadingStandard(false);
+    }
+  };
+
+  // Function to generate cover letter
+  const handleGenerateCoverLetter = async () => {
+    // Get resume text - either from analysis or we need it from the form
+    let resumeText = originalResumeText;
+
+    // If no resume text from analysis, show error
+    if (!resumeText) {
+      showAlert(
+        "Please run the analysis first to generate a cover letter.",
+        "warning",
+      );
+      return;
+    }
+
+    if (
+      !coverLetterForm.companyName.trim() ||
+      !coverLetterForm.jobTitle.trim()
+    ) {
+      showAlert("Please enter the company name and job title.", "warning");
+      return;
+    }
+
+    // Determine which job description to use
+    // In auto mode (from results), use the saved analysis job description
+    // In manual mode, use the form's job description
+    const jobDescToUse =
+      coverLetterMode === "manual"
+        ? coverLetterForm.jobDescription
+        : analysisJobDescription || coverLetterForm.jobDescription || "";
+
+    if (!jobDescToUse.trim()) {
+      showAlert("Please enter a job description.", "warning");
+      return;
+    }
+
+    setGeneratingCoverLetter(true);
+    try {
+      const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
+      const response = await fetch(`${BASE_URL}/generate-cover-letter`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          resume_text: resumeText,
+          job_description: jobDescToUse,
+          company_name: coverLetterForm.companyName,
+          job_title: coverLetterForm.jobTitle,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setCoverLetter(data.cover_letter);
+        showAlert("Cover letter generated successfully!", "success");
+      } else {
+        const errorData = await response.json();
+        showAlert(
+          errorData.error || "Failed to generate cover letter.",
+          "error",
+        );
+      }
+    } catch (error) {
+      console.error("Cover letter generation error:", error);
+      showAlert("Failed to generate cover letter. Please try again.", "error");
+    } finally {
+      setGeneratingCoverLetter(false);
+    }
+  };
+
+  // Function to copy cover letter to clipboard
+  const handleCopyCoverLetter = () => {
+    navigator.clipboard.writeText(coverLetter);
+    showAlert("Cover letter copied to clipboard!", "success");
+  };
+
+  // Function to download cover letter as text file
+  const handleDownloadCoverLetter = () => {
+    const blob = new Blob([coverLetter], { type: "text/plain" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `cover_letter_${coverLetterForm.companyName.replace(/\s+/g, "_")}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+    showAlert("Cover letter downloaded!", "success");
+  };
+
+  // Function to generate interview preparation
+  const handleGenerateInterviewPrep = async () => {
+    if (!results || !originalResumeText) {
+      showAlert("Please run the analysis first.", "warning");
+      return;
+    }
+
+    if (
+      !interviewPrepForm.companyName.trim() ||
+      !interviewPrepForm.jobTitle.trim()
+    ) {
+      showAlert("Please enter the company name and job title.", "warning");
+      return;
+    }
+
+    setGeneratingInterviewPrep(true);
+    try {
+      const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
+      const response = await fetch(`${BASE_URL}/interview-prep`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          resume_text: originalResumeText,
+          job_description: analysisJobDescription || "",
+          company_name: interviewPrepForm.companyName,
+          job_title: interviewPrepForm.jobTitle,
+          analysis_results: results,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setInterviewPrep(data.interview_prep);
+        setActiveInterviewTab("questions");
+        showAlert("Interview preparation generated successfully!", "success");
+      } else {
+        const errorData = await response.json();
+        showAlert(
+          errorData.error || "Failed to generate interview prep.",
+          "error",
+        );
+      }
+    } catch (error) {
+      console.error("Interview prep generation error:", error);
+      showAlert(
+        "Failed to generate interview preparation. Please try again.",
+        "error",
+      );
+    } finally {
+      setGeneratingInterviewPrep(false);
     }
   };
 
@@ -857,9 +1069,9 @@ const ATSMatcher = () => {
             Upload your CV and paste the job requirements below for an instant
             score and tailored recommendations.
           </p>
-          {/* <Link to="/recruiters">
+          <Link to="/recruiters">
             <button style={styles.recruiterButton}>Recruiters Tool</button>
-          </Link> */}
+          </Link>
         </div>
         {isAuthenticated && user && (
           <div style={styles.avatarContainer}>
@@ -1051,6 +1263,13 @@ const ATSMatcher = () => {
                           {new Date(resume.created_at).toLocaleDateString()}
                         </p>
                       </div>
+                      <button
+                        style={styles.deleteResumeBtn}
+                        onClick={(e) => deleteResume(resume.id, e)}
+                        title="Delete resume"
+                      >
+                        ×
+                      </button>
                       {selectedSavedResume?.id === resume.id && (
                         <div style={styles.selectedIndicator}>✓</div>
                       )}
@@ -1101,7 +1320,7 @@ const ATSMatcher = () => {
       {/* --- RESULTS SECTION --- */}
       {results && (
         <div style={styles.resultsSection}>
-          <h2>✅ Analysis Complete</h2>
+          <h2 className="section-title">✅ Analysis Complete</h2>
           <hr style={{ border: "1px solid #eee" }} />
 
           {/* Main Score Badges - Multi-Metric Display */}
@@ -1289,89 +1508,191 @@ const ATSMatcher = () => {
             </>
           )}
 
-          {/* Download Button */}
-          <button
-            onClick={handleDownloadOptimizedCV}
-            disabled={downloadingOptimized}
-            style={{
-              ...styles.submitButton,
-              backgroundColor: downloadingOptimized ? "#ccc" : "#34a853",
-              marginTop: "20px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "10px",
-            }}
-          >
-            {downloadingOptimized && (
+          {/* Action Buttons Section - Redesigned */}
+          <div style={styles.actionsContainer}>
+            <h3 style={styles.actionsTitle}>What would you like to do next?</h3>
+
+            {/* Action Cards Grid */}
+            <div style={styles.actionsGrid}>
+              {/* Download Actions */}
+              <div style={styles.actionCard}>
+                <div style={styles.actionCardIcon}>📥</div>
+                <h4 style={styles.actionCardTitle}>Download Resume</h4>
+                <p style={styles.actionCardDesc}>Get your optimized resume</p>
+                <div style={styles.actionCardButtons}>
+                  <button
+                    onClick={handleDownloadOptimizedCV}
+                    disabled={downloadingOptimized}
+                    style={{
+                      ...styles.actionBtn,
+                      backgroundColor: downloadingOptimized
+                        ? "#ccc"
+                        : "#34a853",
+                    }}
+                  >
+                    {downloadingOptimized ? (
+                      <span style={styles.actionBtnContent}>
+                        <div
+                          className="spinner"
+                          style={{ width: "14px", height: "14px" }}
+                        />
+                        Generating...
+                      </span>
+                    ) : (
+                      "Optimized (.pdf)"
+                    )}
+                  </button>
+                  <button
+                    onClick={handleDownloadStandardResume}
+                    disabled={downloadingStandard}
+                    style={{
+                      ...styles.actionBtn,
+                      backgroundColor: downloadingStandard ? "#ccc" : "#4285f4",
+                    }}
+                  >
+                    {downloadingStandard ? (
+                      <span style={styles.actionBtnContent}>
+                        <div
+                          className="spinner"
+                          style={{ width: "14px", height: "14px" }}
+                        />
+                        Generating...
+                      </span>
+                    ) : (
+                      "Standard (.pdf)"
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Analysis Card */}
               <div
-                className="spinner"
-                style={{ width: "16px", height: "16px" }}
-              />
-            )}
-            {downloadingOptimized
-              ? "Generating..."
-              : "⬇️ Download Optimized CV (.docx)"}
-          </button>
+                style={styles.actionCard}
+                onClick={() => setShowAllAnalysis(true)}
+                className="action-card-clickable"
+              >
+                <div style={styles.actionCardIcon}>📊</div>
+                <h4 style={styles.actionCardTitle}>Full Analysis</h4>
+                <p style={styles.actionCardDesc}>
+                  View detailed breakdown of your match score
+                </p>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowAllAnalysis(true);
+                  }}
+                  style={{
+                    ...styles.actionBtn,
+                    backgroundColor: "#1a73e8",
+                    width: "100%",
+                  }}
+                >
+                  View Report
+                </button>
+              </div>
 
-          {/* Standard Resume Download Button */}
-          <button
-            onClick={handleDownloadStandardResume}
-            disabled={downloadingStandard}
-            style={{
-              ...styles.submitButton,
-              backgroundColor: downloadingStandard ? "#ccc" : "#4285f4",
-              marginTop: "15px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "10px",
-            }}
-          >
-            {downloadingStandard && (
+              {/* Cover Letter Card */}
               <div
-                className="spinner"
-                style={{ width: "16px", height: "16px" }}
-              />
+                style={styles.actionCard}
+                onClick={() => {
+                  setCoverLetterMode("auto");
+                  setCoverLetterForm({
+                    companyName: "",
+                    jobTitle: "",
+                    jobDescription: "",
+                  });
+                  setShowCoverLetterModal(true);
+                }}
+                className="action-card-clickable"
+              >
+                <div style={styles.actionCardIcon}>✉️</div>
+                <h4 style={styles.actionCardTitle}>Cover Letter</h4>
+                <p style={styles.actionCardDesc}>
+                  Generate a personalized cover letter
+                </p>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCoverLetterMode("auto");
+                    setCoverLetterForm({
+                      companyName: "",
+                      jobTitle: "",
+                      jobDescription: "",
+                    });
+                    setShowCoverLetterModal(true);
+                  }}
+                  style={{
+                    ...styles.actionBtn,
+                    backgroundColor: "#9c27b0",
+                    width: "100%",
+                  }}
+                >
+                  Generate
+                </button>
+              </div>
+
+              {/* Interview Prep Card */}
+              <div
+                style={styles.actionCard}
+                onClick={() => setShowInterviewPrepModal(true)}
+                className="action-card-clickable"
+              >
+                <div style={styles.actionCardIcon}>🎯</div>
+                <h4 style={styles.actionCardTitle}>Interview Prep</h4>
+                <p style={styles.actionCardDesc}>
+                  Get questions & answers for your interview
+                </p>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowInterviewPrepModal(true);
+                  }}
+                  style={{
+                    ...styles.actionBtn,
+                    backgroundColor: "#00796b",
+                    width: "100%",
+                  }}
+                >
+                  Prepare Now
+                </button>
+              </div>
+            </div>
+
+            {/* Save Resume - Secondary Action */}
+            {resumeSource === "upload" && resumeFile && (
+              <div style={styles.saveResumeBar}>
+                <div style={styles.saveResumeInfo}>
+                  <span style={styles.saveResumeIcon}>💾</span>
+                  <span>
+                    Want to use this resume again? Save it for quick access.
+                  </span>
+                </div>
+                <button
+                  onClick={saveResume}
+                  disabled={loadingStates.loadingSavingResume}
+                  style={{
+                    ...styles.actionBtn,
+                    backgroundColor: loadingStates.loadingSavingResume
+                      ? "#ccc"
+                      : "#ff9800",
+                    minWidth: "140px",
+                  }}
+                >
+                  {loadingStates.loadingSavingResume ? (
+                    <span style={styles.actionBtnContent}>
+                      <div
+                        className="spinner"
+                        style={{ width: "14px", height: "14px" }}
+                      />
+                      Saving...
+                    </span>
+                  ) : (
+                    "Save Resume"
+                  )}
+                </button>
+              </div>
             )}
-            {downloadingStandard
-              ? "Generating..."
-              : "📄 Download Standard Resume (PDF)"}
-          </button>
-
-          {/* See All Analysis Button */}
-          <button
-            onClick={() => setShowAllAnalysis(true)}
-            style={{
-              ...styles.submitButton,
-              backgroundColor: "#1a73e8",
-              marginTop: "15px",
-            }}
-          >
-            📊 See All Analysis
-          </button>
-
-          {/* Save Resume Button - only for uploaded resumes */}
-          {resumeSource === "upload" && resumeFile && (
-            <button
-              onClick={saveResume}
-              style={{
-                ...styles.submitButton,
-                backgroundColor: "#ff9800",
-                marginTop: "15px",
-              }}
-            >
-              {loadingStates.loadingSavingResume && (
-                <div
-                  className="spinner"
-                  style={{ width: "16px", height: "16px" }}
-                />
-              )}
-              {loadingStates.loadingSavingResume
-                ? "Saving..."
-                : "💾 Save Resume for Later"}
-            </button>
-          )}
+          </div>
         </div>
       )}
 
@@ -1582,6 +1903,515 @@ const ATSMatcher = () => {
                 style={{
                   ...styles.submitButton,
                   backgroundColor: "#1a73e8",
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cover Letter Modal */}
+      {showCoverLetterModal && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalContent}>
+            <div style={styles.modalHeader}>
+              <h2 className="section-title">✉️ Generate Cover Letter</h2>
+              <button
+                onClick={() => {
+                  setShowCoverLetterModal(false);
+                  setCoverLetter("");
+                  setCoverLetterForm({
+                    companyName: "",
+                    jobTitle: "",
+                    jobDescription: "",
+                  });
+                  setCoverLetterMode("auto");
+                }}
+                style={styles.closeButton}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={styles.modalBody}>
+              {!coverLetter ? (
+                <>
+                  <p style={{ color: "#666", marginBottom: "20px" }}>
+                    {coverLetterMode === "auto" && results
+                      ? "Generate a personalized cover letter based on your resume analysis. The job description from your analysis will be used automatically."
+                      : "Enter the details below to generate a personalized, human-written cover letter based on your resume."}
+                  </p>
+
+                  <div style={{ marginBottom: "20px" }}>
+                    <label style={styles.inputLabel}>Company Name *</label>
+                    <input
+                      type="text"
+                      value={coverLetterForm.companyName}
+                      onChange={(e) =>
+                        setCoverLetterForm({
+                          ...coverLetterForm,
+                          companyName: e.target.value,
+                        })
+                      }
+                      placeholder="e.g., Google, Microsoft, Acme Corp"
+                      style={styles.textInput}
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: "20px" }}>
+                    <label style={styles.inputLabel}>Job Title *</label>
+                    <input
+                      type="text"
+                      value={coverLetterForm.jobTitle}
+                      onChange={(e) =>
+                        setCoverLetterForm({
+                          ...coverLetterForm,
+                          jobTitle: e.target.value,
+                        })
+                      }
+                      placeholder="e.g., Senior Software Engineer, Product Manager"
+                      style={styles.textInput}
+                    />
+                  </div>
+
+                  {/* Show indicator that we're using data from analysis */}
+                  <div
+                    style={{
+                      backgroundColor: "#e8f5e9",
+                      padding: "12px 15px",
+                      borderRadius: "8px",
+                      marginBottom: "20px",
+                      color: "#2e7d32",
+                      fontSize: "0.9em",
+                    }}
+                  >
+                    ✓ Using your resume and job description from the analysis
+                  </div>
+
+                  <button
+                    onClick={handleGenerateCoverLetter}
+                    disabled={
+                      generatingCoverLetter ||
+                      !coverLetterForm.companyName.trim() ||
+                      !coverLetterForm.jobTitle.trim()
+                    }
+                    style={{
+                      ...styles.submitButton,
+                      backgroundColor: generatingCoverLetter
+                        ? "#ccc"
+                        : "#9c27b0",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "10px",
+                    }}
+                  >
+                    {generatingCoverLetter && (
+                      <div
+                        className="spinner"
+                        style={{ width: "16px", height: "16px" }}
+                      />
+                    )}
+                    {generatingCoverLetter
+                      ? "Generating..."
+                      : "Generate Cover Letter"}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div style={styles.coverLetterWrapper}>
+                    <button
+                      onClick={handleCopyCoverLetter}
+                      style={styles.copyIconButton}
+                      title="Copy to clipboard"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <rect
+                          x="9"
+                          y="9"
+                          width="13"
+                          height="13"
+                          rx="2"
+                          ry="2"
+                        ></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                      </svg>
+                    </button>
+                    <div style={styles.coverLetterContainer}>
+                      <pre style={styles.coverLetterText}>{coverLetter}</pre>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "10px",
+                      marginTop: "20px",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <button
+                      onClick={handleCopyCoverLetter}
+                      style={{
+                        ...styles.submitButton,
+                        flex: 1,
+                        minWidth: "150px",
+                        backgroundColor: "#1a73e8",
+                      }}
+                    >
+                      📋 Copy to Clipboard
+                    </button>
+                    <button
+                      onClick={handleDownloadCoverLetter}
+                      style={{
+                        ...styles.submitButton,
+                        flex: 1,
+                        minWidth: "150px",
+                        backgroundColor: "#34a853",
+                      }}
+                    >
+                      ⬇️ Download as Text
+                    </button>
+                    <button
+                      onClick={() => {
+                        setCoverLetter("");
+                      }}
+                      style={{
+                        ...styles.submitButton,
+                        flex: 1,
+                        minWidth: "150px",
+                        backgroundColor: "#ff9800",
+                      }}
+                    >
+                      🔄 Regenerate
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div style={styles.modalFooter}>
+              <button
+                onClick={() => {
+                  setShowCoverLetterModal(false);
+                  setCoverLetter("");
+                  setCoverLetterForm({
+                    companyName: "",
+                    jobTitle: "",
+                    jobDescription: "",
+                  });
+                  setCoverLetterMode("auto");
+                }}
+                style={{
+                  ...styles.submitButton,
+                  backgroundColor: "#666",
+                  width: "auto",
+                  padding: "10px 30px",
+                }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Interview Prep Modal */}
+      {showInterviewPrepModal && (
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.modalContent, maxWidth: "950px" }}>
+            <div style={styles.modalHeader}>
+              <h2 className="section-title">🎯 Interview Preparation</h2>
+              <button
+                onClick={() => {
+                  setShowInterviewPrepModal(false);
+                  setInterviewPrep(null);
+                  setInterviewPrepForm({ companyName: "", jobTitle: "" });
+                }}
+                style={styles.closeButton}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={styles.modalBody}>
+              {!interviewPrep ? (
+                <>
+                  <p style={{ color: "#666", marginBottom: "20px" }}>
+                    Get personalized interview preparation based on your resume
+                    and the job requirements. We'll generate likely questions,
+                    suggested answers, and tips to ace your interview.
+                  </p>
+
+                  <div style={{ marginBottom: "20px" }}>
+                    <label style={styles.inputLabel}>Company Name *</label>
+                    <input
+                      type="text"
+                      value={interviewPrepForm.companyName}
+                      onChange={(e) =>
+                        setInterviewPrepForm({
+                          ...interviewPrepForm,
+                          companyName: e.target.value,
+                        })
+                      }
+                      placeholder="e.g., Google, Microsoft, Acme Corp"
+                      style={styles.textInput}
+                    />
+                  </div>
+
+                  <div style={{ marginBottom: "20px" }}>
+                    <label style={styles.inputLabel}>Job Title *</label>
+                    <input
+                      type="text"
+                      value={interviewPrepForm.jobTitle}
+                      onChange={(e) =>
+                        setInterviewPrepForm({
+                          ...interviewPrepForm,
+                          jobTitle: e.target.value,
+                        })
+                      }
+                      placeholder="e.g., Senior Software Engineer, Product Manager"
+                      style={styles.textInput}
+                    />
+                  </div>
+
+                  <button
+                    onClick={handleGenerateInterviewPrep}
+                    disabled={
+                      generatingInterviewPrep ||
+                      !interviewPrepForm.companyName.trim() ||
+                      !interviewPrepForm.jobTitle.trim()
+                    }
+                    style={{
+                      ...styles.submitButton,
+                      backgroundColor: generatingInterviewPrep
+                        ? "#ccc"
+                        : "#00796b",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "10px",
+                    }}
+                  >
+                    {generatingInterviewPrep && (
+                      <div
+                        className="spinner"
+                        style={{ width: "16px", height: "16px" }}
+                      />
+                    )}
+                    {generatingInterviewPrep
+                      ? "Generating Prep..."
+                      : "Generate Interview Prep"}
+                  </button>
+                </>
+              ) : (
+                <>
+                  {/* Tabs */}
+                  <div style={styles.interviewTabs}>
+                    <button
+                      onClick={() => setActiveInterviewTab("questions")}
+                      style={{
+                        ...styles.interviewTab,
+                        ...(activeInterviewTab === "questions"
+                          ? styles.interviewTabActive
+                          : {}),
+                      }}
+                    >
+                      Questions ({interviewPrep.likely_questions?.length || 0})
+                    </button>
+                    <button
+                      onClick={() => setActiveInterviewTab("redflags")}
+                      style={{
+                        ...styles.interviewTab,
+                        ...(activeInterviewTab === "redflags"
+                          ? styles.interviewTabActive
+                          : {}),
+                      }}
+                    >
+                      Red Flags ({interviewPrep.red_flags?.length || 0})
+                    </button>
+                    <button
+                      onClick={() => setActiveInterviewTab("askquestions")}
+                      style={{
+                        ...styles.interviewTab,
+                        ...(activeInterviewTab === "askquestions"
+                          ? styles.interviewTabActive
+                          : {}),
+                      }}
+                    >
+                      Questions to Ask (
+                      {interviewPrep.questions_to_ask?.length || 0})
+                    </button>
+                    <button
+                      onClick={() => setActiveInterviewTab("tips")}
+                      style={{
+                        ...styles.interviewTab,
+                        ...(activeInterviewTab === "tips"
+                          ? styles.interviewTabActive
+                          : {}),
+                      }}
+                    >
+                      Tips & Talking Points
+                    </button>
+                  </div>
+
+                  {/* Tab Content */}
+                  <div style={styles.interviewTabContent}>
+                    {/* Likely Questions Tab */}
+                    {activeInterviewTab === "questions" && (
+                      <div>
+                        <h3 style={{ marginBottom: "15px", color: "#1a73e8" }}>
+                          Likely Interview Questions
+                        </h3>
+                        {interviewPrep.likely_questions?.map((q, idx) => (
+                          <div key={idx} style={styles.interviewQuestionCard}>
+                            <div style={styles.questionCategory}>
+                              {q.category}
+                            </div>
+                            <h4 style={styles.questionText}>{q.question}</h4>
+                            <p style={styles.whyAsked}>
+                              <strong>Why they ask:</strong> {q.why_asked}
+                            </p>
+                            <div style={styles.suggestedAnswer}>
+                              <strong>Suggested Answer:</strong>
+                              <p>{q.suggested_answer}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Red Flags Tab */}
+                    {activeInterviewTab === "redflags" && (
+                      <div>
+                        <h3 style={{ marginBottom: "15px", color: "#d93025" }}>
+                          Potential Red Flags & How to Address
+                        </h3>
+                        <p style={{ color: "#666", marginBottom: "20px" }}>
+                          These are areas the interviewer might probe. Be
+                          prepared to address them proactively.
+                        </p>
+                        {interviewPrep.red_flags?.map((rf, idx) => (
+                          <div key={idx} style={styles.redFlagCard}>
+                            <h4
+                              style={{ color: "#d93025", marginBottom: "10px" }}
+                            >
+                              ⚠️ {rf.concern}
+                            </h4>
+                            <p style={{ color: "#333" }}>
+                              <strong>How to address:</strong>{" "}
+                              {rf.how_to_address}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Questions to Ask Tab */}
+                    {activeInterviewTab === "askquestions" && (
+                      <div>
+                        <h3 style={{ marginBottom: "15px", color: "#34a853" }}>
+                          Smart Questions to Ask the Interviewer
+                        </h3>
+                        <p style={{ color: "#666", marginBottom: "20px" }}>
+                          Asking thoughtful questions shows genuine interest and
+                          engagement.
+                        </p>
+                        {interviewPrep.questions_to_ask?.map((q, idx) => (
+                          <div key={idx} style={styles.askQuestionCard}>
+                            <h4 style={{ color: "#333", marginBottom: "8px" }}>
+                              "{q.question}"
+                            </h4>
+                            <p style={{ color: "#666", fontSize: "0.9em" }}>
+                              <em>Why it's effective:</em> {q.why_effective}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Tips & Talking Points Tab */}
+                    {activeInterviewTab === "tips" && (
+                      <div>
+                        <h3 style={{ marginBottom: "15px", color: "#9c27b0" }}>
+                          Preparation Tips
+                        </h3>
+                        <ul
+                          style={{ marginBottom: "30px", paddingLeft: "20px" }}
+                        >
+                          {interviewPrep.preparation_tips?.map((tip, idx) => (
+                            <li
+                              key={idx}
+                              style={{
+                                marginBottom: "10px",
+                                color: "#333",
+                                lineHeight: "1.6",
+                              }}
+                            >
+                              {tip}
+                            </li>
+                          ))}
+                        </ul>
+
+                        <h3 style={{ marginBottom: "15px", color: "#1a73e8" }}>
+                          Key Talking Points
+                        </h3>
+                        {interviewPrep.key_talking_points?.map((tp, idx) => (
+                          <div key={idx} style={styles.talkingPointCard}>
+                            <h4
+                              style={{ color: "#1a73e8", marginBottom: "8px" }}
+                            >
+                              {tp.topic}
+                            </h4>
+                            <p style={{ color: "#333" }}>{tp.how_to_present}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Regenerate Button */}
+                  <div style={{ marginTop: "20px", textAlign: "center" }}>
+                    <button
+                      onClick={() => setInterviewPrep(null)}
+                      style={{
+                        ...styles.submitButton,
+                        backgroundColor: "#ff9800",
+                        width: "auto",
+                        padding: "10px 30px",
+                      }}
+                    >
+                      🔄 Generate New Prep
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div style={styles.modalFooter}>
+              <button
+                onClick={() => {
+                  setShowInterviewPrepModal(false);
+                  setInterviewPrep(null);
+                  setInterviewPrepForm({ companyName: "", jobTitle: "" });
+                }}
+                style={{
+                  ...styles.submitButton,
+                  backgroundColor: "#666",
+                  width: "auto",
+                  padding: "10px 30px",
                 }}
               >
                 Close
@@ -2064,7 +2894,7 @@ const styles = {
   selectedIndicator: {
     position: "absolute",
     top: "10px",
-    right: "10px",
+    left: "10px",
     backgroundColor: "#1a73e8",
     color: "white",
     borderRadius: "50%",
@@ -2075,5 +2905,263 @@ const styles = {
     justifyContent: "center",
     fontSize: "0.8em",
     fontWeight: "bold",
+  },
+  deleteResumeBtn: {
+    position: "absolute",
+    top: "50%",
+    right: "12px",
+    transform: "translateY(-50%)",
+    backgroundColor: "transparent",
+    border: "none",
+    color: "#999",
+    fontSize: "1.4em",
+    cursor: "pointer",
+    padding: "4px 8px",
+    borderRadius: "4px",
+    transition: "all 0.2s",
+    lineHeight: 1,
+  },
+  // Cover Letter Styles
+  inputLabel: {
+    display: "block",
+    marginBottom: "8px",
+    fontWeight: "600",
+    color: "#333",
+    fontSize: "0.95em",
+  },
+  textInput: {
+    width: "100%",
+    padding: "12px 15px",
+    border: "1px solid #ddd",
+    borderRadius: "8px",
+    fontSize: "1em",
+    transition: "border-color 0.2s",
+    outline: "none",
+  },
+  coverLetterWrapper: {
+    position: "relative",
+  },
+  copyIconButton: {
+    position: "absolute",
+    top: "10px",
+    right: "10px",
+    backgroundColor: "#fff",
+    border: "1px solid #ddd",
+    borderRadius: "8px",
+    padding: "8px",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    transition: "all 0.2s ease",
+    zIndex: 10,
+    color: "#666",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+  },
+  coverLetterContainer: {
+    backgroundColor: "#f9f9f9",
+    border: "1px solid #e0e0e0",
+    borderRadius: "8px",
+    padding: "20px",
+    paddingTop: "50px",
+    maxHeight: "400px",
+    overflowY: "auto",
+  },
+  coverLetterText: {
+    whiteSpace: "pre-wrap",
+    fontFamily: "Georgia, 'Times New Roman', serif",
+    fontSize: "1em",
+    lineHeight: "1.8",
+    color: "#333",
+    margin: 0,
+  },
+  // Interview Prep Styles
+  interviewTabs: {
+    display: "flex",
+    gap: "5px",
+    marginBottom: "20px",
+    borderBottom: "2px solid #eee",
+    paddingBottom: "10px",
+    flexWrap: "wrap",
+  },
+  interviewTab: {
+    padding: "10px 20px",
+    border: "none",
+    backgroundColor: "#f5f5f5",
+    borderRadius: "8px 8px 0 0",
+    cursor: "pointer",
+    fontWeight: "500",
+    color: "#666",
+    transition: "all 0.2s",
+  },
+  interviewTabActive: {
+    backgroundColor: "#00796b",
+    color: "#fff",
+  },
+  interviewTabContent: {
+    maxHeight: "450px",
+    overflowY: "auto",
+    padding: "10px 0",
+  },
+  interviewQuestionCard: {
+    backgroundColor: "#f9f9f9",
+    border: "1px solid #e0e0e0",
+    borderRadius: "8px",
+    padding: "20px",
+    marginBottom: "15px",
+  },
+  questionCategory: {
+    display: "inline-block",
+    backgroundColor: "#1a73e8",
+    color: "#fff",
+    padding: "4px 12px",
+    borderRadius: "20px",
+    fontSize: "0.8em",
+    fontWeight: "600",
+    marginBottom: "10px",
+  },
+  questionText: {
+    color: "#333",
+    marginBottom: "10px",
+    fontSize: "1.05em",
+  },
+  whyAsked: {
+    color: "#666",
+    fontSize: "0.9em",
+    marginBottom: "15px",
+    fontStyle: "italic",
+  },
+  suggestedAnswer: {
+    backgroundColor: "#e8f5e9",
+    color: "#1e8e3e",
+    padding: "15px",
+    borderRadius: "8px",
+    borderLeft: "4px solid #34a853",
+  },
+  redFlagCard: {
+    backgroundColor: "#fff5f5",
+    border: "1px solid #ffcdd2",
+    borderRadius: "8px",
+    padding: "20px",
+    marginBottom: "15px",
+  },
+  askQuestionCard: {
+    backgroundColor: "#f0fdf4",
+    border: "1px solid #bbf7d0",
+    borderRadius: "8px",
+    padding: "20px",
+    marginBottom: "15px",
+  },
+  talkingPointCard: {
+    backgroundColor: "#eff6ff",
+    border: "1px solid #bfdbfe",
+    borderRadius: "8px",
+    padding: "20px",
+    marginBottom: "15px",
+  },
+  // Action Cards Styles
+  actionsContainer: {
+    marginTop: "30px",
+    padding: "25px",
+    backgroundColor: "#f8fafc",
+    borderRadius: "12px",
+    border: "1px solid #e2e8f0",
+  },
+  actionsTitle: {
+    margin: "0 0 20px 0",
+    color: "#334155",
+    fontSize: "1.1em",
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  actionsGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+    gap: "16px",
+  },
+  actionCard: {
+    backgroundColor: "#fff",
+    borderRadius: "12px",
+    padding: "20px",
+    border: "1px solid #e2e8f0",
+    transition: "all 0.2s ease",
+    cursor: "pointer",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    textAlign: "center",
+    boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+  },
+  actionCardIcon: {
+    fontSize: "2em",
+    marginBottom: "12px",
+    width: "50px",
+    height: "50px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f1f5f9",
+    borderRadius: "12px",
+  },
+  actionCardTitle: {
+    margin: "0 0 6px 0",
+    fontSize: "1em",
+    fontWeight: "600",
+    color: "#1e293b",
+  },
+  actionCardDesc: {
+    margin: "0 0 15px 0",
+    fontSize: "0.85em",
+    color: "#64748b",
+    lineHeight: "1.4",
+  },
+  actionCardButtons: {
+    display: "flex",
+    gap: "8px",
+    width: "100%",
+    flexWrap: "wrap",
+  },
+  actionBtn: {
+    flex: 1,
+    minWidth: "90px",
+    padding: "10px 12px",
+    border: "none",
+    borderRadius: "8px",
+    fontSize: "0.85em",
+    fontWeight: "600",
+    color: "#fff",
+    cursor: "pointer",
+    transition: "all 0.2s ease",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "6px",
+  },
+  actionBtnContent: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+  },
+  saveResumeBar: {
+    marginTop: "20px",
+    padding: "16px 20px",
+    backgroundColor: "#fff",
+    borderRadius: "10px",
+    border: "1px dashed #fbbf24",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: "12px",
+  },
+  saveResumeInfo: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    color: "#92400e",
+    fontSize: "0.9em",
+  },
+  saveResumeIcon: {
+    fontSize: "1.3em",
   },
 };

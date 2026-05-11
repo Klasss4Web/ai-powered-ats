@@ -2,22 +2,23 @@
 ATS Matcher Backend - Main Application Entry Point
 """
 
-from flask import Flask, jsonify
+import time
+from flask import Flask, jsonify, request, g
 from flask_cors import CORS
 
 from db import init_db, close_db_connection, create_database_if_not_exists
+from db.database import get_db
 
 # Import route modules
 from auth.auth import register_auth_routes
 from routes.payment import register_payment_routes
 from routes.usage import register_usage_routes
 from routes.resume import register_resume_routes
+from routes.admin import register_admin_routes
 
 import os
 
 from logger.app_logger import logger
-
-
 
 
 app = Flask(__name__)
@@ -27,11 +28,64 @@ CORS(app)
 app.teardown_appcontext(close_db_connection)
 
 
+# ---------------------------
+# API METRICS MIDDLEWARE
+# ---------------------------
+@app.before_request
+def before_request():
+    """Record request start time."""
+    g.start_time = time.time()
+
+
+@app.after_request
+def after_request(response):
+    """Record API metrics after each request."""
+    # Skip static files and health checks
+    if request.path in ["/", "/health"] or request.path.startswith("/static"):
+        return response
+
+    try:
+        # Calculate response time
+        response_time_ms = (time.time() - getattr(g, "start_time", time.time())) * 1000
+
+        # Get user ID if authenticated
+        user_id = getattr(g, "user_id", None)
+
+        # Get client info
+        ip_address = request.remote_addr
+        user_agent = request.headers.get("User-Agent", "")[:500]  # Limit length
+
+        # Record to database
+        db = get_db()
+        cursor = db.cursor()
+
+        cursor.execute(
+            """
+            INSERT INTO api_metrics (endpoint, method, status_code, response_time_ms, user_id, ip_address, user_agent)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """,
+            (
+                request.path,
+                request.method,
+                response.status_code,
+                round(response_time_ms, 2),
+                user_id,
+                ip_address,
+                user_agent,
+            ),
+        )
+
+        db.commit()
+
+    except Exception as e:
+        logger.error(f"Failed to record API metrics: {e}")
+
+    return response
+
 
 with app.app_context():
     init_db(app)
     logger.info("Database initialized successfully.")
-
 
 
 def register_routes(app):
@@ -39,30 +93,31 @@ def register_routes(app):
     register_payment_routes(app)
     register_usage_routes(app)
     register_resume_routes(app)
+    register_admin_routes(app)
 
 
-@app.route('/', methods=['GET'])
+@app.route("/", methods=["GET"])
 def index():
     return (
-        '<h2>ATS Matcher Backend</h2>'
-        '<p>Available endpoints:</p>'
-        '<ul>'
-        '<li>POST <code>/api/match</code></li>'
-        '<li>POST <code>/api/payment/initialize</code></li>'
-        '<li>GET <code>/api/payment/verify/&lt;reference&gt;</code></li>'
-        '<li>GET <code>/health</code></li>'
-        '</ul>'
+        "<h2>ATS Matcher Backend</h2>"
+        "<p>Available endpoints:</p>"
+        "<ul>"
+        "<li>POST <code>/api/match</code></li>"
+        "<li>POST <code>/api/payment/initialize</code></li>"
+        "<li>GET <code>/api/payment/verify/&lt;reference&gt;</code></li>"
+        "<li>GET <code>/health</code></li>"
+        "</ul>"
     )
 
 
-@app.route('/health', methods=['GET'])
+@app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "ok"})
 
 
 register_routes(app)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     init_db(app)
     logger.info("Database initialized successfully.")
     app.run(debug=True, port=5000)

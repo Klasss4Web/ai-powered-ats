@@ -12,13 +12,11 @@ from config import DATABASE_URL
 # 1. DATABASE CONNECTION (REQUEST LEVEL)
 # =========================================================
 
+
 def get_db():
     """Get database connection (one per request)."""
     if "db" not in g:
-        g.db = psycopg.connect(
-            DATABASE_URL,
-            row_factory=dict_row
-        )
+        g.db = psycopg.connect(DATABASE_URL, row_factory=dict_row)
     return g.db
 
 
@@ -33,6 +31,7 @@ def close_db_connection(e=None):
 # 2. DATABASE CREATION (SERVER LEVEL)
 # =========================================================
 
+
 def create_database_if_not_exists():
     """
     Creates the PostgreSQL database if it does not exist.
@@ -45,17 +44,13 @@ def create_database_if_not_exists():
 
     # Connect to default postgres database
     conn = psycopg.connect(
-        DATABASE_URL.rsplit("/", 1)[0] + "/postgres",
-        autocommit=True
+        DATABASE_URL.rsplit("/", 1)[0] + "/postgres", autocommit=True
     )
 
     try:
         cur = conn.cursor()
 
-        cur.execute(
-            "SELECT 1 FROM pg_database WHERE datname = %s",
-            (db_name,)
-        )
+        cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (db_name,))
 
         exists = cur.fetchone()
 
@@ -74,14 +69,12 @@ def create_database_if_not_exists():
 # 3. TABLE INITIALIZATION (SCHEMA LEVEL)
 # =========================================================
 
+
 def init_db(app):
     """Initialize database tables."""
 
     with app.app_context():
-        conn = psycopg.connect(
-            DATABASE_URL,
-            row_factory=dict_row
-        )
+        conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
 
         try:
             cur = conn.cursor()
@@ -110,6 +103,48 @@ def init_db(app):
             cur.execute("""
                 ALTER TABLE users 
                 ADD COLUMN IF NOT EXISTS reset_expires TIMESTAMP
+            """)
+
+            # Add role column for admin access
+            cur.execute("""
+                ALTER TABLE users 
+                ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'user'
+                    CHECK (role IN ('user', 'admin'))
+            """)
+
+            # -------------------------
+            # API METRICS TRACKING (for observability)
+            # -------------------------
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS api_metrics (
+                    id SERIAL PRIMARY KEY,
+                    endpoint TEXT NOT NULL,
+                    method TEXT NOT NULL,
+                    status_code INTEGER,
+                    response_time_ms REAL,
+                    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    ip_address TEXT,
+                    user_agent TEXT,
+                    tokens_used INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # -------------------------
+            # TOKEN USAGE TRACKING (for LLM costs)
+            # -------------------------
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS token_usage (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                    endpoint TEXT NOT NULL,
+                    model TEXT,
+                    prompt_tokens INTEGER DEFAULT 0,
+                    completion_tokens INTEGER DEFAULT 0,
+                    total_tokens INTEGER DEFAULT 0,
+                    estimated_cost REAL DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
             """)
 
             # -------------------------
@@ -153,11 +188,45 @@ def init_db(app):
             """)
 
             # -------------------------
+            # SCREENING SESSIONS (Recruiter Feature)
+            # -------------------------
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS screening_sessions (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    job_title TEXT,
+                    job_description TEXT NOT NULL,
+                    total_candidates INTEGER DEFAULT 0,
+                    results JSONB,
+                    report TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            # -------------------------
             # INDEXES
             # -------------------------
             cur.execute("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_usage_user_id ON usage_tracking(user_id)")
-            cur.execute("CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token)")
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_usage_user_id ON usage_tracking(user_id)"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token)"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_screening_user_id ON screening_sessions(user_id)"
+            )
+
+            # Indexes for admin metrics
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_api_metrics_created ON api_metrics(created_at)"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_api_metrics_endpoint ON api_metrics(endpoint)"
+            )
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_token_usage_created ON token_usage(created_at)"
+            )
 
             conn.commit()
 

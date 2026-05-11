@@ -132,30 +132,39 @@ const HomePage = () => {
 
   return (
     <div className="page-shell">
+      {/* Hero Section */}
       <section className="hero-panel">
         <div className="hero-copy">
-          <span className="hero-badge">AI-powered career growth</span>
+          <span className="hero-badge">AI-powered career toolkit</span>
           <h1 className="hero-title">
-            Optimize your resume and land your dream job
+            Your complete job search companion
           </h1>
           <p className="hero-description">
-            Analyze your resume against job descriptions, uncover skill gaps,
-            and get AI-powered recommendations to stand out to recruiters.
+            Analyze resumes, generate cover letters, prepare for interviews, and screen candidates - all powered by AI to help you land your dream job.
           </p>
           <div className="hero-actions">
-            <Link to="/matcher" className="primary-btn">
-              Analyze my resume
-            </Link>
-            <Link
-              to={isAuthenticated ? "/dashboard" : "#"}
-              onClick={(e) =>
-                !isAuthenticated &&
-                (e.preventDefault(), setShowLoginModal(true))
-              }
-              className="secondary-btn"
-            >
-              {isAuthenticated ? "Go to dashboard" : "Login / Register"}
-            </Link>
+            {isAuthenticated ? (
+              <>
+                <Link to="/matcher" className="primary-btn">
+                  Analyze Resume
+                </Link>
+                <Link to="/dashboard" className="secondary-btn">
+                  Go to Dashboard
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link to="/matcher" className="primary-btn">
+                  Get Started Free
+                </Link>
+                <button
+                  onClick={() => setShowLoginModal(true)}
+                  className="secondary-btn"
+                >
+                  Login / Register
+                </button>
+              </>
+            )}
           </div>
         </div>
         <div className="hero-visual">
@@ -167,16 +176,138 @@ const HomePage = () => {
             </div>
           </div>
           <div className="hero-card glass-card secondary-card">
-            <div className="hero-card-header">Premium members</div>
+            <div className="hero-card-header">Career tools</div>
             <div className="hero-card-body">
-              <div className="hero-metric">20+</div>
-              <div className="hero-subtitle">Advanced insights daily</div>
+              <div className="hero-metric">4+</div>
+              <div className="hero-subtitle">AI-powered features</div>
             </div>
           </div>
           <div className="hero-wave" />
         </div>
       </section>
 
+      {/* Main Services Section */}
+      <section className="services-section">
+        <div className="services-header">
+          <span className="eyebrow">Our Services</span>
+          <h2>Everything you need to succeed</h2>
+          <p>From resume optimization to interview preparation - we've got you covered at every step.</p>
+        </div>
+
+        <div className="services-grid">
+          {/* Resume Matcher */}
+          <div className="service-card service-card-primary">
+            <div className="service-icon">📊</div>
+            <h3>Resume Matcher</h3>
+            <p>
+              Upload your resume and job description to get instant ATS compatibility scores, 
+              skill gap analysis, and actionable recommendations.
+            </p>
+            <ul className="service-features">
+              <li>ATS compatibility scoring</li>
+              <li>Missing skills detection</li>
+              <li>Keyword optimization tips</li>
+              <li>Download optimized resume</li>
+            </ul>
+            <Link to="/matcher" className="service-btn primary">
+              Analyze Resume
+            </Link>
+          </div>
+
+          {/* Cover Letter Generator */}
+          <div className="service-card service-card-purple">
+            <div className="service-icon">✉️</div>
+            <h3>Cover Letter Generator</h3>
+            <p>
+              Generate personalized, human-written cover letters tailored to each job application. 
+              No AI-sounding text - just natural, compelling letters.
+            </p>
+            <ul className="service-features">
+              <li>Personalized to your experience</li>
+              <li>Tailored to job requirements</li>
+              <li>Natural, human-like tone</li>
+              <li>Ready to copy & send</li>
+            </ul>
+            <Link to="/matcher" className="service-btn purple">
+              Create Cover Letter
+            </Link>
+          </div>
+
+          {/* Interview Prep */}
+          <div className="service-card service-card-teal">
+            <div className="service-icon">🎯</div>
+            <h3>Interview Preparation</h3>
+            <p>
+              Get personalized interview questions based on your resume and the job. 
+              Includes suggested answers, red flags to address, and questions to ask.
+            </p>
+            <ul className="service-features">
+              <li>Likely interview questions</li>
+              <li>Personalized answer suggestions</li>
+              <li>Red flags & how to address</li>
+              <li>Smart questions to ask</li>
+            </ul>
+            <Link to="/matcher" className="service-btn teal">
+              Prepare for Interview
+            </Link>
+          </div>
+
+          {/* Recruiter Tools */}
+          <div className="service-card service-card-orange">
+            <div className="service-icon">👥</div>
+            <h3>Recruiter Screening</h3>
+            <p>
+              Screen multiple candidates at once against your job requirements. 
+              Get ranked results, detailed reports, and hiring recommendations.
+            </p>
+            <ul className="service-features">
+              <li>Batch resume screening</li>
+              <li>Candidate ranking & scoring</li>
+              <li>Detailed screening reports</li>
+              <li>Hiring recommendations</li>
+            </ul>
+            <Link to="/recruiters" className="service-btn orange">
+              Screen Candidates
+            </Link>
+            <span className="service-badge">Premium</span>
+          </div>
+        </div>
+      </section>
+
+      {/* How It Works */}
+      <section className="how-it-works">
+        <div className="services-header">
+          <span className="eyebrow">Simple Process</span>
+          <h2>How it works</h2>
+        </div>
+        <div className="steps-grid">
+          <div className="step-card">
+            <div className="step-number">1</div>
+            <h4>Upload Resume</h4>
+            <p>Upload your PDF resume or select a previously saved one.</p>
+          </div>
+          <div className="step-arrow">→</div>
+          <div className="step-card">
+            <div className="step-number">2</div>
+            <h4>Add Job Description</h4>
+            <p>Paste the job description you're applying for.</p>
+          </div>
+          <div className="step-arrow">→</div>
+          <div className="step-card">
+            <div className="step-number">3</div>
+            <h4>Get Analysis</h4>
+            <p>Receive instant scores, feedback, and recommendations.</p>
+          </div>
+          <div className="step-arrow">→</div>
+          <div className="step-card">
+            <div className="step-number">4</div>
+            <h4>Take Action</h4>
+            <p>Download optimized resume, generate cover letter, or prep for interview.</p>
+          </div>
+        </div>
+      </section>
+
+      {/* Quick Features Grid */}
       <section className="feature-grid">
         <div className="feature-card">
           <h3>Instant feedback</h3>
@@ -186,21 +317,22 @@ const HomePage = () => {
           </p>
         </div>
         <div className="feature-card">
-          <h3>Skill insights</h3>
+          <h3>Human-like writing</h3>
           <p>
-            Discover missing keywords and technical skills required for roles
-            you're targeting.
+            Our cover letters sound natural and authentic - no robotic AI text that 
+            recruiters can spot.
           </p>
         </div>
         <div className="feature-card">
-          <h3>Flexible access</h3>
+          <h3>Interview confidence</h3>
           <p>
-            Use pay-as-you-go for occasional checks or subscribe for unlimited
-            analyses.
+            Walk into interviews prepared with likely questions and personalized 
+            answers based on your experience.
           </p>
         </div>
       </section>
 
+      {/* User Dashboard Summary (if authenticated) */}
       {isAuthenticated && user ? (
         <section className="dashboard-summary glass-card large-card">
           <div className="summary-header">
@@ -248,11 +380,14 @@ const HomePage = () => {
           </div>
 
           <div className="quick-links">
-            <Link to="/dashboard" className="primary-btn">
-              Open dashboard
+            <Link to="/matcher" className="primary-btn">
+              Analyze Resume
+            </Link>
+            <Link to="/recruiters" className="secondary-btn">
+              Recruiter Tools
             </Link>
             <Link to="/subscribe" className="secondary-btn">
-              Upgrade subscription
+              Upgrade Plan
             </Link>
           </div>
         </section>
@@ -262,30 +397,31 @@ const HomePage = () => {
             <h2>Ready to level up your job search?</h2>
             <p>
               Sign in to save multiple resumes, track your optimization
-              progress, and manage your analysis plan.
+              progress, and unlock all career tools.
             </p>
           </div>
-          <div>
+          <div className="invite-actions">
             <button
               className="primary-btn"
               onClick={() => setShowLoginModal(true)}
             >
-              Create account
+              Create free account
             </button>
             <Link to="/matcher" className="secondary-btn">
-              Explore matcher
+              Try without account
             </Link>
           </div>
         </section>
       )}
 
+      {/* Why Choose Us */}
       <section className="insight-section">
         <div className="insight-copy">
           <span className="eyebrow">Why ATS Matcher?</span>
-          <h2>Career tools built for job seekers</h2>
+          <h2>Career tools built for modern job seekers</h2>
           <p>
             Everything you need to optimize your job search: resume analysis,
-            skill gap detection, and flexible pricing all in one place.
+            cover letter generation, interview prep, and recruiter tools - all in one place.
           </p>
         </div>
 
@@ -298,20 +434,51 @@ const HomePage = () => {
             </p>
           </div>
           <div className="insight-card glass-card">
+            <h3>Complete toolkit</h3>
+            <p>
+              From resume optimization to interview prep - everything you need 
+              in one integrated platform.
+            </p>
+          </div>
+          <div className="insight-card glass-card">
             <h3>Affordable plans</h3>
             <p>
               Pay per analysis or upgrade to unlimited checks with our premium
               subscription.
             </p>
           </div>
-          <div className="insight-card glass-card">
-            <h3>Personal dashboard</h3>
-            <p>
-              Keep your resumes organized, track your improvements, and manage
-              your subscription.
-            </p>
-          </div>
         </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="cta-section glass-card">
+        {isAuthenticated ? (
+          <>
+            <h2>Ready to optimize your next application?</h2>
+            <p>Use our AI-powered tools to improve your chances of landing your dream job.</p>
+            <div className="cta-actions">
+              <Link to="/matcher" className="primary-btn large">
+                Analyze Resume
+              </Link>
+              <Link to="/recruiters" className="secondary-btn">
+                Recruiter Tools
+              </Link>
+            </div>
+          </>
+        ) : (
+          <>
+            <h2>Start optimizing your career today</h2>
+            <p>Join thousands of job seekers who've improved their chances with ATS Matcher</p>
+            <div className="cta-actions">
+              <Link to="/matcher" className="primary-btn large">
+                Get Started Free
+              </Link>
+              <Link to="/subscribe" className="secondary-btn">
+                View Pricing
+              </Link>
+            </div>
+          </>
+        )}
       </section>
 
       {alertModal.isOpen && (

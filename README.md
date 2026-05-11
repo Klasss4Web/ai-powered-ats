@@ -20,6 +20,35 @@ This guide explains how to set up, run, and develop the ATS Matcher application 
 
 ---
 
+## ✨ Features
+
+### Core Features
+
+- **Resume Analysis** — Upload your resume and job description to get an ATS compatibility score
+- **Multi-Metric Scoring** — Detailed scores for keyword match, skills alignment, experience relevance, formatting, and seniority fit
+- **Optimized Resume Download** — Generate an AI-optimized resume tailored to the job description (PDF)
+- **Cover Letter Generation** — AI-generated personalized cover letters
+- **Interview Preparation** — Get likely interview questions and suggested answers based on your resume and the job
+
+### Premium Features
+
+- **Batch Resume Screening** — Recruiters can analyze multiple resumes against a job description
+- **Screening Reports** — Generate comprehensive candidate comparison reports
+- **Increased Usage Limits** — Premium users get higher daily analysis limits
+
+### Admin Dashboard (`/admin`)
+
+A comprehensive admin panel for monitoring and managing the application:
+
+- **Dashboard Overview** — Key metrics at a glance (users, analyses, API health, token usage)
+- **Traffic Analytics** — Daily active users, analysis trends, hourly traffic patterns, top endpoints
+- **Token Usage** — Monitor LLM token consumption, costs by endpoint, top users by usage
+- **Performance Metrics** — API response times, error rates, slowest endpoints, health insights
+- **User Management** — Search, filter, and manage users; assign admin roles
+- **Activity Log** — Timeline view of recent user actions
+
+---
+
 ## 🚀 Quick Start (Local Development)
 
 ### 1. Prerequisites
@@ -67,6 +96,47 @@ python app.py
 ```
 
 - The backend runs at: `http://localhost:5000`
+
+### API Endpoints
+
+#### Authentication
+
+- `POST /api/auth/register` — Register a new user
+- `POST /api/auth/login` — Login and get JWT token
+- `GET /api/auth/verify` — Verify token and get user info
+- `POST /api/auth/logout` — Logout
+- `POST /api/auth/forgot-password` — Request password reset
+- `POST /api/auth/reset-password` — Reset password with token
+
+#### Resume & Analysis
+
+- `POST /api/match` — Analyze resume against job description
+- `POST /api/generate-optimized-resume` — Generate AI-optimized resume (PDF)
+- `POST /api/generate-cv` — Generate standard formatted resume (PDF)
+- `POST /api/generate-cover-letter` — Generate personalized cover letter
+- `POST /api/interview-prep` — Generate interview preparation materials
+- `GET /api/resumes` — Get saved resumes
+- `POST /api/resumes/save` — Save a resume
+- `DELETE /api/resumes/:id` — Delete a saved resume
+
+#### Recruiter Features (Premium)
+
+- `POST /api/batch-match` — Batch analyze multiple resumes
+- `POST /api/recruiter/report` — Generate screening report
+- `POST /api/recruiter/sessions` — Create screening session
+- `GET /api/recruiter/sessions` — List screening sessions
+- `GET /api/recruiter/sessions/:id` — Get session details
+- `DELETE /api/recruiter/sessions/:id` — Delete session
+
+#### Admin Endpoints (Admin role required)
+
+- `GET /api/admin/dashboard` — Dashboard overview statistics
+- `GET /api/admin/analytics/traffic` — Traffic analytics
+- `GET /api/admin/analytics/tokens` — Token usage analytics
+- `GET /api/admin/analytics/performance` — API performance metrics
+- `GET /api/admin/users` — List users (paginated, searchable)
+- `PUT /api/admin/users/:id/role` — Update user role
+- `GET /api/admin/activity` — Recent activity log
 
 ### Running Tests & Coverage
 
@@ -122,6 +192,22 @@ npm run dev
 
 - The frontend runs at: `http://localhost:5173`
 
+### Frontend Routes
+
+| Route                | Description                       |
+| -------------------- | --------------------------------- |
+| `/`                  | Home page                         |
+| `/matcher`           | ATS Resume Matcher (main feature) |
+| `/recruiters`        | Recruiter batch screening view    |
+| `/dashboard`         | User dashboard                    |
+| `/subscribe`         | Subscription/pricing page         |
+| `/admin`             | Admin dashboard (admin only)      |
+| `/admin/traffic`     | Traffic analytics                 |
+| `/admin/tokens`      | Token usage monitoring            |
+| `/admin/performance` | API performance metrics           |
+| `/admin/users`       | User management                   |
+| `/admin/activity`    | Activity log                      |
+
 ---
 
 ## 🗄️ Database Setup
@@ -135,6 +221,26 @@ npm run dev
   ```sh
   ./scripts/check-db.sh <db_endpoint:host:port> <db_username> <db_password> <db_name>
   ```
+
+### Database Schema
+
+The application uses the following tables:
+
+- `users` — User accounts with email, password, subscription info, and role
+- `usage_tracking` — Tracks user actions (analyses, payments, etc.)
+- `sessions` — User session tokens
+- `saved_resumes` — User's saved resume documents
+- `screening_sessions` — Recruiter screening sessions
+- `api_metrics` — API request metrics (for observability)
+- `token_usage` — LLM token consumption tracking
+
+### Setting Up an Admin User
+
+To grant admin access to a user, run this SQL query:
+
+```sql
+UPDATE users SET role = 'admin' WHERE email = 'your-email@example.com';
+```
 
 ---
 
@@ -152,13 +258,20 @@ npm run dev
 
 ## 🔑 Environment Variables (Backend)
 
-- `DATABASE_URL` — PostgreSQL connection string
-- `JWT_SECRET_KEY` — JWT signing key
-- `GEMINI_API_KEY`, `OPENAI_API_KEY`, etc. — AI/ML API keys
-- `PAYSTACK_SECRET_KEY`, `PAYSTACK_PK_KEY` — Payment provider keys
-- `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` — PayPal keys
-- `PAYSTACK_CALLBACK_URL` — Payment callback URL
-- See `backend/.env` for all required variables
+| Variable                | Description                      |
+| ----------------------- | -------------------------------- |
+| `DATABASE_URL`          | PostgreSQL connection string     |
+| `JWT_SECRET_KEY`        | JWT signing key                  |
+| `OPENROUTER_API_KEY`    | OpenRouter API key for LLM calls |
+| `GEMINI_API_KEY`        | Google Gemini API key (optional) |
+| `OPENAI_API_KEY`        | OpenAI API key (optional)        |
+| `PAYSTACK_SECRET_KEY`   | Paystack secret key              |
+| `PAYSTACK_PK_KEY`       | Paystack public key              |
+| `PAYPAL_CLIENT_ID`      | PayPal client ID                 |
+| `PAYPAL_CLIENT_SECRET`  | PayPal client secret             |
+| `PAYSTACK_CALLBACK_URL` | Payment callback URL             |
+
+See `backend/.env.example` for all required variables.
 
 ---
 
@@ -175,9 +288,13 @@ npm run dev
 - For production, always set strong secrets and use managed DBs
 - For local dev, you can use the provided `.env` and a local PostgreSQL instance
 - For AWS, see `INFRASTRUCTURE_README.md` and `backend/docker.md`
+- Admin dashboard is protected and requires `role = 'admin'` in the users table
 
 ---
 
 ## 📞 Support
 
 For issues, open an issue in this repo or contact the maintainer.
+
+<!-- UPDATE users SET role = 'admin' WHERE email = 'your-email@example.com';
+ -->
