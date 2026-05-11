@@ -85,7 +85,7 @@ def after_request(response):
 
 with app.app_context():
     init_db(app)
-    logger.info("Database initialized successfully.")
+    logger.info("Wow Database initialized successfully.")
 
 
 def register_routes(app):
@@ -119,5 +119,5 @@ register_routes(app)
 
 if __name__ == "__main__":
     init_db(app)
-    logger.info("Database initialized successfully.")
+    logger.info(f"Wawu Database initialized successfully. @@@@ WELCOME TO ATS @@@ MATCHER BACKEND @@@@")
     app.run(debug=True, port=5000)
