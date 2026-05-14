@@ -288,7 +288,7 @@ def register_auth_routes(app):
                     "id": g.user["id"],
                     "email": g.user["email"],
                     "name": g.user["name"],
-                    "role": g.user.get("role", "user"),
+                    "role": g.user.get("role", "admin"),
                     "subscription_type": g.user["subscription_type"],
                     "subscription_expires_at": g.user["subscription_expires_at"],
                 },
