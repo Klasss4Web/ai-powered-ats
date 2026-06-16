@@ -9,6 +9,7 @@ from logger.app_logger import logger, log_llm_call
 import os
 import datetime
 import PyPDF2
+from dotenv import load_dotenv
 from io import BytesIO
 from docx import Document
 from flask import jsonify, g, request, send_file
@@ -17,6 +18,8 @@ from routes.usage import check_usage_limit, record_usage
 from config import MAX_SAVED_RESUMES, MAX_BATCH_RESUMES, RECRUITER_TIERS, PREMIUM_TIERS
 from openai import OpenAI
 from jobs.worker import submit_job
+
+load_dotenv()
 
 
 # ---------------------------

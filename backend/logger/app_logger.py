@@ -5,6 +5,10 @@ from datetime import datetime
 from functools import wraps
 from flask import request, g
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 # --- Color Formatter ---
 class ColorFormatter(logging.Formatter):

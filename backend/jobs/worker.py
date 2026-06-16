@@ -11,6 +11,7 @@ import tempfile
 import time
 import traceback
 from io import BytesIO
+from dotenv import load_dotenv
 
 import psycopg
 from psycopg.rows import dict_row
@@ -18,9 +19,12 @@ from psycopg.rows import dict_row
 from config import DATABASE_URL, MAX_BATCH_RESUMES
 from logger.app_logger import logger
 
+load_dotenv()
+
 # Thread pool for background workers
 _executor = concurrent.futures.ThreadPoolExecutor(max_workers=3)
 _running = True
+
 
 MODEL = "openai/gpt-oss-120b"
 
