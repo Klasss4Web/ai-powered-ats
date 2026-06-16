@@ -3,11 +3,13 @@ import { Link } from "react-router-dom";
 import AlertModal from "../components/AlertModal";
 import LoginModal from "../components/auth/LoginModal";
 import UsageStatus from "../components/UsageStatus";
-import { AUTH_CONSTANTS, BASE_URL } from "../constants/auth_constants";
+import { AUTH_CONSTANTS } from "../constants/auth_constants";
+import { useAuth } from "../contexts/AuthContext";
+import fetchWithTimeout from "../configs/fetch";
 
 const DashboardPage = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState(null);
+  const { user, isAuthenticated, login, logout } = useAuth();
+
   const [usageInfo, setUsageInfo] = useState(null);
   const [savedResumes, setSavedResumes] = useState([]);
   const [showLoginModal, setShowLoginModal] = useState(false);
@@ -18,14 +20,14 @@ const DashboardPage = () => {
   });
   const [loading, setLoading] = useState(false);
 
+  /* ── auto-fetch data once authenticated ── */
   useEffect(() => {
-    const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
-    if (token) {
-      verifyAuth(token);
-    } else {
+    if (isAuthenticated && user) {
+      fetchDashboardData();
+    } else if (!isAuthenticated && user === null) {
       setShowLoginModal(true);
     }
-  }, []);
+  }, [isAuthenticated, user]);
 
   const showAlert = (message, type = "info") => {
     setAlertModal({ isOpen: true, message, type });
@@ -34,43 +36,20 @@ const DashboardPage = () => {
   const closeAlert = () =>
     setAlertModal({ isOpen: false, message: "", type: "info" });
 
-  const verifyAuth = async (token) => {
+  const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${BASE_URL}/auth/verify`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) {
-        localStorage.removeItem(AUTH_CONSTANTS.TOKEN_KEY);
-        setShowLoginModal(true);
-        return;
-      }
-
-      const data = await response.json();
-      setUser({
-        id: data.user.id,
-        email: data.user.email,
-        name: data.user.name,
-        subscription_type: data.user.subscription_type,
-        subscription_expires_at: data.user.subscription_expires_at,
-      });
-      setIsAuthenticated(true);
-      await fetchUsageInfo(token);
-      await fetchSavedResumes(token);
-    } catch (error) {
-      console.error("Dashboard auth error:", error);
+      await Promise.all([fetchUsageInfo(), fetchSavedResumes()]);
+    } catch {
       showAlert("Unable to load dashboard. Please try again.", "error");
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchUsageInfo = async (token) => {
+  const fetchUsageInfo = async () => {
     try {
-      const response = await fetch(`${BASE_URL}/user/usage`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await fetchWithTimeout("/user/usage");
       if (response.ok) {
         const data = await response.json();
         setUsageInfo(data);
@@ -80,11 +59,9 @@ const DashboardPage = () => {
     }
   };
 
-  const fetchSavedResumes = async (token) => {
+  const fetchSavedResumes = async () => {
     try {
-      const response = await fetch(`${BASE_URL}/resumes`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await fetchWithTimeout("/resumes");
       if (response.ok) {
         const data = await response.json();
         setSavedResumes(data.resumes || []);
@@ -95,30 +72,15 @@ const DashboardPage = () => {
   };
 
   const handleLoginSuccess = (userData) => {
-    const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
-    setUser({
-      id: userData.id,
-      email: userData.email,
-      name: userData.name,
-      subscription_type: userData.subscription_type,
-      subscription_expires_at: userData.subscription_expires_at,
-    });
-    setIsAuthenticated(true);
+    login(userData);
     setShowLoginModal(false);
     showAlert(`Welcome back, ${userData.name}!`, "success");
-    if (token) {
-      fetchUsageInfo(token);
-      fetchSavedResumes(token);
-    }
   };
 
   const handleLogout = () => {
-    localStorage.removeItem(AUTH_CONSTANTS.TOKEN_KEY);
-    setIsAuthenticated(false);
-    setUser(null);
+    logout();
     setUsageInfo(null);
     setSavedResumes([]);
-    setShowLoginModal(true);
   };
 
   return (

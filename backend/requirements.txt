@@ -1,8 +1,8 @@
 Flask==2.3.3
 flask-cors==4.0.0
+flask-limiter==3.5.0
 PyPDF2==3.0.1
 python-docx==1.1.0
-google-genai==0.3.0
 python-dotenv==1.0.0
 reportlab==4.0.7
 PyJWT==2.8.0
@@ -12,5 +12,5 @@ psycopg[binary]
 bcrypt
 mangum
 openai
-openai-agents
 gunicorn
+sendgrid==6.11.0

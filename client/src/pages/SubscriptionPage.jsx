@@ -3,10 +3,12 @@ import { Link } from "react-router-dom";
 import AlertModal from "../components/AlertModal";
 import LoginModal from "../components/auth/LoginModal";
 import { AUTH_CONSTANTS, BASE_URL } from "../constants/auth_constants";
+import { useAuth } from "../contexts/AuthContext";
+import { useUpgrade } from "../hooks/useUpgrade";
 
 const SubscriptionPage = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState(null);
+  const { user, isAuthenticated, login } = useAuth();
+
   const [paymentConfig, setPaymentConfig] = useState(null);
   const [planType, setPlanType] = useState("monthly");
   const [gateway, setGateway] = useState("paystack");
@@ -19,46 +21,20 @@ const SubscriptionPage = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
-    if (token) {
-      verifyAuth(token);
-      fetchPaymentConfig();
-    } else {
+    if (!isAuthenticated && user === null) {
       setShowLoginModal(true);
     }
-  }, []);
+    fetchPaymentConfig();
+  }, [isAuthenticated, user]);
 
   const showAlert = (message, type = "info") => {
     setAlertModal({ isOpen: true, message, type });
   };
 
+  const { handleUpgrade } = useUpgrade({ showAlert });
+
   const closeAlert = () =>
     setAlertModal({ isOpen: false, message: "", type: "info" });
-
-  const verifyAuth = async (token) => {
-    try {
-      const response = await fetch(`${BASE_URL}/auth/verify`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) {
-        localStorage.removeItem(AUTH_CONSTANTS.TOKEN_KEY);
-        setShowLoginModal(true);
-        return;
-      }
-      const data = await response.json();
-      setUser({
-        id: data.user.id,
-        email: data.user.email,
-        name: data.user.name,
-        subscription_type: data.user.subscription_type,
-        subscription_expires_at: data.user.subscription_expires_at,
-      });
-      setIsAuthenticated(true);
-    } catch (error) {
-      console.error("Subscription auth error:", error);
-      showAlert("Unable to verify your account. Please try again.", "error");
-    }
-  };
 
   const fetchPaymentConfig = async () => {
     try {
@@ -73,54 +49,15 @@ const SubscriptionPage = () => {
   };
 
   const handleLoginSuccess = (userData) => {
-    setUser({
-      id: userData.id,
-      email: userData.email,
-      name: userData.name,
-      subscription_type: userData.subscription_type,
-      subscription_expires_at: userData.subscription_expires_at,
-    });
-    setIsAuthenticated(true);
+    login(userData);
     setShowLoginModal(false);
     showAlert(`Welcome back, ${userData.name}!`, "success");
-    fetchPaymentConfig();
   };
 
-  const handleUpgrade = async () => {
-    const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
-    if (!token) {
-      showAlert("Login is required to upgrade.", "warning");
-      setShowLoginModal(true);
-      return;
-    }
-
+  const handleContinueToPayment = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${BASE_URL}/subscription/upgrade`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ plan_type: planType, gateway }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "Subscription request failed.");
-      }
-
-      const authorizationUrl =
-        data?.data?.authorization_url ||
-        data?.data?.links?.find((link) => link.rel === "approve")?.href;
-      if (authorizationUrl) {
-        window.location.href = authorizationUrl;
-      } else {
-        throw new Error("No payment URL returned.");
-      }
-    } catch (error) {
-      console.error("Subscription upgrade error:", error);
-      showAlert(error.message || "Upgrade failed. Please try again.", "error");
+      await handleUpgrade(planType, gateway);
     } finally {
       setLoading(false);
     }
@@ -147,47 +84,93 @@ const SubscriptionPage = () => {
         </div>
       </section>
 
-      <section className="subscription-grid">
+      {/* ── Plan cards ── */}
+      <section className="subscription-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" }}>
+
+        {/* Monthly Premium */}
         <div className="plan-card glass-card">
           <div className="plan-tag">Popular</div>
           <h2>Monthly Premium</h2>
-          <p className="plan-price">₦15,000 or $15 / month</p>
+          <p className="plan-price">₦15,000 <span style={{ fontSize: "0.7em", color: "#888" }}>or $15 / month</span></p>
           <ul className="plan-coverage">
             <li>Up to 10 analyses per day</li>
-            <li>Saved resume library</li>
+            <li>Cover letter &amp; interview prep</li>
+            <li>Saved resume library (3 resumes)</li>
+            <li>My Analysis history</li>
             <li>Priority support</li>
           </ul>
           <button
             className={planType === "monthly" ? "primary-btn" : "secondary-btn"}
             onClick={() => setPlanType("monthly")}
           >
-            Select monthly
+            {planType === "monthly" ? "✓ Selected" : "Select monthly"}
           </button>
         </div>
 
+        {/* Yearly Premium */}
         <div className="plan-card glass-card premium-plan">
           <div className="plan-tag plan-tag-alt">Best value</div>
           <h2>Yearly Premium</h2>
-          <p className="plan-price">₦180,000 or $180 / year</p>
+          <p className="plan-price">₦180,000 <span style={{ fontSize: "0.7em", color: "#888" }}>or $180 / year</span></p>
           <ul className="plan-coverage">
             <li>Everything in monthly</li>
-            <li>Save 25% with yearly billing</li>
+            <li>Save ~17% vs monthly billing</li>
             <li>Priority upgrades and support</li>
           </ul>
           <button
             className={planType === "yearly" ? "primary-btn" : "secondary-btn"}
             onClick={() => setPlanType("yearly")}
           >
-            Select yearly
+            {planType === "yearly" ? "✓ Selected" : "Select yearly"}
           </button>
         </div>
+
+        {/* Pro Monthly */}
+        <div className="plan-card glass-card" style={{ borderTop: "3px solid #6366f1" }}>
+          <div className="plan-tag" style={{ background: "#6366f1" }}>Recruiter</div>
+          <h2>Pro Monthly</h2>
+          <p className="plan-price">₦100,000 <span style={{ fontSize: "0.7em", color: "#888" }}>or $60 / month</span></p>
+          <ul className="plan-coverage">
+            <li>Up to <strong>100 analyses per day</strong></li>
+            <li>Full recruiter &amp; batch screening</li>
+            <li>Up to 20 resumes per batch</li>
+            <li>Saved resume library (10 resumes)</li>
+            <li>All Premium features included</li>
+            <li>Priority support</li>
+          </ul>
+          <button
+            className={planType === "pro_monthly" ? "primary-btn" : "secondary-btn"}
+            onClick={() => setPlanType("pro_monthly")}
+          >
+            {planType === "pro_monthly" ? "✓ Selected" : "Select Pro monthly"}
+          </button>
+        </div>
+
+        {/* Pro Yearly */}
+        <div className="plan-card glass-card" style={{ borderTop: "3px solid #6366f1" }}>
+          <div className="plan-tag plan-tag-alt" style={{ background: "#4f46e5" }}>Best Pro value</div>
+          <h2>Pro Yearly</h2>
+          <p className="plan-price">₦1,000,000 <span style={{ fontSize: "0.7em", color: "#888" }}>or $600 / year</span></p>
+          <ul className="plan-coverage">
+            <li>Everything in Pro monthly</li>
+            <li>Save ~17% vs Pro monthly</li>
+            <li>Dedicated account support</li>
+          </ul>
+          <button
+            className={planType === "pro_yearly" ? "primary-btn" : "secondary-btn"}
+            onClick={() => setPlanType("pro_yearly")}
+          >
+            {planType === "pro_yearly" ? "✓ Selected" : "Select Pro yearly"}
+          </button>
+        </div>
+
       </section>
 
       <section className="payment-panel glass-card">
         <div className="payment-panel-header">
           <div>
             <p className="eyebrow">Ready to upgrade?</p>
-            <h2>Secure your premium access</h2>
+            <h2>Secure your access</h2>
           </div>
           <div className="gateway-buttons">
             <button
@@ -211,13 +194,24 @@ const SubscriptionPage = () => {
           <div>
             <strong>Selected plan</strong>
             <p>
-              {planType === "monthly" ? "Monthly Premium" : "Yearly Premium"}
+              {{
+                monthly:     "Monthly Premium — ₦15,000 / $15",
+                yearly:      "Yearly Premium — ₦180,000 / $180",
+                pro_monthly: "Pro Monthly — ₦100,000 / $60",
+                pro_yearly:  "Pro Yearly — ₦1,000,000 / $600",
+              }[planType]}
             </p>
           </div>
           <div>
             <strong>Gateway</strong>
             <p>
-              {gateway === "paystack" ? "₦ or NGN gateway" : "USD via PayPal"}
+              {gateway === "paystack" ? "₦ via Paystack" : "USD via PayPal"}
+            </p>
+          </div>
+          <div>
+            <strong>Tier</strong>
+            <p style={{ color: planType.startsWith("pro_") ? "#6366f1" : "#22c55e", fontWeight: 600 }}>
+              {planType.startsWith("pro_") ? "Pro (Recruiter)" : "Premium"}
             </p>
           </div>
         </div>
@@ -225,7 +219,7 @@ const SubscriptionPage = () => {
         <div className="payment-btn_container">
           <button
             className="primary-btn upgrade-btn"
-            onClick={handleUpgrade}
+            onClick={handleContinueToPayment}
             disabled={loading}
           >
             {loading ? "Processing..." : "Continue to payment"}

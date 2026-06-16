@@ -15,6 +15,9 @@ from routes.payment import register_payment_routes
 from routes.usage import register_usage_routes
 from routes.resume import register_resume_routes
 from routes.admin import register_admin_routes
+from routes.jobs import register_job_routes
+from routes.applications import register_application_routes
+from routes.features import register_feature_routes
 
 import os
 
@@ -22,7 +25,19 @@ from logger.app_logger import logger
 
 
 app = Flask(__name__)
-CORS(app)
+
+# CRIT-3: Restrict CORS to known frontend origins only.
+# FRONTEND_URL can be a comma-separated list for multiple origins.
+# In production, set FRONTEND_URL to your deployed frontend domain.
+_frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+_allowed_origins = [origin.strip() for origin in _frontend_url.split(",")]
+# Always include localhost:3000 for local development with CRA / other dev servers
+if "http://localhost:3000" not in _allowed_origins:
+    _allowed_origins.append("http://localhost:3000")
+CORS(app, origins=_allowed_origins, supports_credentials=True)
+
+# CRIT-4: Limit upload size to 5 MB to prevent DoS via large file uploads.
+app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024  # 5 MB
 
 # Register teardown
 app.teardown_appcontext(close_db_connection)
@@ -85,7 +100,7 @@ def after_request(response):
 
 with app.app_context():
     init_db(app)
-    logger.info("Wow Database initialized successfully.")
+    logger.info("Database initialized successfully.")
 
 
 def register_routes(app):
@@ -94,6 +109,9 @@ def register_routes(app):
     register_usage_routes(app)
     register_resume_routes(app)
     register_admin_routes(app)
+    register_job_routes(app)
+    register_application_routes(app)
+    register_feature_routes(app)
 
 
 @app.route("/", methods=["GET"])
@@ -118,6 +136,8 @@ def health():
 register_routes(app)
 
 if __name__ == "__main__":
-    init_db(app)
-    logger.info(f"Wawu Database initialized successfully. @@@@ WELCOME TO ATS @@@ MATCHER BACKEND @@@@")
-    app.run(debug=True, port=5000)
+    # HIGH-7: init_db is already called at module load above; no need to call it again.
+    # HIGH-9: Never hardcode debug=True. Drive it from the environment instead.
+    debug_mode = os.getenv("FLASK_DEBUG", "false").lower() == "true"
+    logger.info("Welcome to ATS Matcher Backend")
+    app.run(debug=debug_mode, port=5000)

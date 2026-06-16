@@ -172,7 +172,7 @@ def register_admin_routes(app):
                     DATE(created_at) as date,
                     COUNT(DISTINCT user_id) as active_users
                 FROM usage_tracking
-                WHERE created_at >= CURRENT_DATE - INTERVAL '%s days'
+                WHERE created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')
                 GROUP BY DATE(created_at)
                 ORDER BY date
             """,
@@ -191,7 +191,7 @@ def register_admin_routes(app):
                     COUNT(*) as count
                 FROM usage_tracking
                 WHERE action_type = 'analysis' 
-                    AND created_at >= CURRENT_DATE - INTERVAL '%s days'
+                    AND created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')
                 GROUP BY DATE(created_at)
                 ORDER BY date
             """,
@@ -209,7 +209,7 @@ def register_admin_routes(app):
                     DATE(created_at) as date,
                     COUNT(*) as count
                 FROM users
-                WHERE created_at >= CURRENT_DATE - INTERVAL '%s days'
+                WHERE created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')
                 GROUP BY DATE(created_at)
                 ORDER BY date
             """,
@@ -243,7 +243,7 @@ def register_admin_routes(app):
                     COUNT(*) as count,
                     AVG(response_time_ms) as avg_time
                 FROM api_metrics
-                WHERE created_at >= CURRENT_DATE - INTERVAL '%s days'
+                WHERE created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')
                 GROUP BY endpoint
                 ORDER BY count DESC
                 LIMIT 10
@@ -299,7 +299,7 @@ def register_admin_routes(app):
                     SUM(total_tokens) as total_tokens,
                     SUM(estimated_cost) as cost
                 FROM token_usage
-                WHERE created_at >= CURRENT_DATE - INTERVAL '%s days'
+                WHERE created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')
                 GROUP BY DATE(created_at)
                 ORDER BY date
             """,
@@ -325,7 +325,7 @@ def register_admin_routes(app):
                     SUM(estimated_cost) as cost,
                     COUNT(*) as request_count
                 FROM token_usage
-                WHERE created_at >= CURRENT_DATE - INTERVAL '%s days'
+                WHERE created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')
                 GROUP BY endpoint
                 ORDER BY total_tokens DESC
             """,
@@ -351,7 +351,7 @@ def register_admin_routes(app):
                     SUM(estimated_cost) as total_cost,
                     COUNT(*) as total_requests
                 FROM token_usage
-                WHERE created_at >= CURRENT_DATE - INTERVAL '%s days'
+                WHERE created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')
             """,
                 (days,),
             )
@@ -369,7 +369,7 @@ def register_admin_routes(app):
                     COUNT(*) as request_count
                 FROM token_usage t
                 JOIN users u ON t.user_id = u.id
-                WHERE t.created_at >= CURRENT_DATE - INTERVAL '%s days'
+                WHERE t.created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')
                 GROUP BY u.id, u.email, u.name
                 ORDER BY total_tokens DESC
                 LIMIT 10
@@ -378,42 +378,49 @@ def register_admin_routes(app):
             )
             top_users_raw = cursor.fetchall()
 
-            # Get endpoint breakdown for each top user
-            top_users = []
-            for row in top_users_raw:
-                # Get breakdown by endpoint for this user
+            # HIGH-6: Replace N+1 per-user endpoint-breakdown queries with a single
+            # aggregated query that fetches all breakdowns at once.
+            if top_users_raw:
+                top_user_ids = [r["user_id"] for r in top_users_raw]
                 cursor.execute(
                     """
-                    SELECT 
+                    SELECT
+                        user_id,
                         endpoint,
-                        COUNT(*) as count,
-                        SUM(total_tokens) as tokens
+                        COUNT(*) AS count,
+                        SUM(total_tokens) AS tokens
                     FROM token_usage
-                    WHERE user_id = %s AND created_at >= CURRENT_DATE - INTERVAL '%s days'
-                    GROUP BY endpoint
+                    WHERE user_id = ANY(%s)
+                      AND created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                    GROUP BY user_id, endpoint
                     ORDER BY tokens DESC
                     """,
-                    (row["user_id"], days),
+                    (top_user_ids, days),
                 )
-                endpoint_breakdown = [
-                    {
-                        "endpoint": format_endpoint_name(r["endpoint"]),
-                        "count": r["count"],
-                        "tokens": r["tokens"] or 0,
-                    }
-                    for r in cursor.fetchall()
-                ]
+                breakdown_rows = cursor.fetchall()
+                # Build a dict keyed by user_id for O(1) lookup
+                breakdown_by_user = {}
+                for br in breakdown_rows:
+                    uid = br["user_id"]
+                    breakdown_by_user.setdefault(uid, []).append({
+                        "endpoint": format_endpoint_name(br["endpoint"]),
+                        "count": br["count"],
+                        "tokens": br["tokens"] or 0,
+                    })
+            else:
+                breakdown_by_user = {}
 
-                top_users.append(
-                    {
-                        "email": row["email"],
-                        "name": row["name"],
-                        "total_tokens": row["total_tokens"] or 0,
-                        "cost": round(row["cost"] or 0, 4),
-                        "request_count": row["request_count"],
-                        "breakdown": endpoint_breakdown,
-                    }
-                )
+            top_users = [
+                {
+                    "email": row["email"],
+                    "name": row["name"],
+                    "total_tokens": row["total_tokens"] or 0,
+                    "cost": round(row["cost"] or 0, 4),
+                    "request_count": row["request_count"],
+                    "breakdown": breakdown_by_user.get(row["user_id"], []),
+                }
+                for row in top_users_raw
+            ]
 
             return jsonify(
                 {
@@ -484,50 +491,43 @@ def register_admin_routes(app):
             )
             total = cursor.fetchone()["count"]
 
-            # Get users
+            # HIGH-5: Replace N+1 per-user usage count queries with a single LEFT JOIN aggregation.
             cursor.execute(
                 f"""
                 SELECT 
-                    id, email, name, role, subscription_type, 
-                    subscription_expires_at, created_at
-                FROM users 
+                    u.id, u.email, u.name, u.role, u.subscription_type, 
+                    u.subscription_expires_at, u.created_at,
+                    COUNT(ut.id) AS usage_count
+                FROM users u
+                LEFT JOIN usage_tracking ut ON ut.user_id = u.id
                 WHERE {where_sql}
-                ORDER BY created_at DESC
+                GROUP BY u.id, u.email, u.name, u.role, u.subscription_type,
+                         u.subscription_expires_at, u.created_at
+                ORDER BY u.created_at DESC
                 LIMIT %s OFFSET %s
             """,
                 params + [per_page, offset],
             )
 
-            users = []
-            for row in cursor.fetchall():
-                # Get usage count for each user
-                cursor.execute(
-                    """
-                    SELECT COUNT(*) as count FROM usage_tracking 
-                    WHERE user_id = %s
-                """,
-                    (row["id"],),
-                )
-                usage_count = cursor.fetchone()["count"]
-
-                users.append(
-                    {
-                        "id": row["id"],
-                        "email": row["email"],
-                        "name": row["name"],
-                        "role": row["role"] or "user",
-                        "subscription_type": row["subscription_type"],
-                        "subscription_expires_at": row[
-                            "subscription_expires_at"
-                        ].isoformat()
-                        if row["subscription_expires_at"]
-                        else None,
-                        "created_at": row["created_at"].isoformat()
-                        if row["created_at"]
-                        else None,
-                        "usage_count": usage_count,
-                    }
-                )
+            users = [
+                {
+                    "id": row["id"],
+                    "email": row["email"],
+                    "name": row["name"],
+                    "role": row["role"] or "user",
+                    "subscription_type": row["subscription_type"],
+                    "subscription_expires_at": row[
+                        "subscription_expires_at"
+                    ].isoformat()
+                    if row["subscription_expires_at"]
+                    else None,
+                    "created_at": row["created_at"].isoformat()
+                    if row["created_at"]
+                    else None,
+                    "usage_count": row["usage_count"],
+                }
+                for row in cursor.fetchall()
+            ]
 
             return jsonify(
                 {
@@ -611,7 +611,7 @@ def register_admin_routes(app):
                     MAX(response_time_ms) as max_time,
                     PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time_ms) as p95
                 FROM api_metrics
-                WHERE created_at >= CURRENT_DATE - INTERVAL '%s days'
+                WHERE created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')
                 GROUP BY DATE(created_at)
                 ORDER BY date
             """,
@@ -637,7 +637,7 @@ def register_admin_routes(app):
                     COUNT(CASE WHEN status_code >= 400 THEN 1 END) as errors,
                     COUNT(CASE WHEN status_code >= 500 THEN 1 END) as server_errors
                 FROM api_metrics
-                WHERE created_at >= CURRENT_DATE - INTERVAL '%s days'
+                WHERE created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')
                 GROUP BY DATE(created_at)
                 ORDER BY date
             """,
@@ -664,7 +664,7 @@ def register_admin_routes(app):
                     AVG(response_time_ms) as avg_time,
                     COUNT(*) as count
                 FROM api_metrics
-                WHERE created_at >= CURRENT_DATE - INTERVAL '%s days'
+                WHERE created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')
                 GROUP BY endpoint
                 HAVING COUNT(*) >= 5
                 ORDER BY avg_time DESC
@@ -745,3 +745,309 @@ def register_admin_routes(app):
         except Exception as e:
             logger.error(f"Activity log error: {e}")
             return jsonify({"error": "Failed to fetch activity log"}), 500
+
+    # ---------------------------
+    # ERROR LOG
+    # ---------------------------
+    @app.route("/api/admin/errors", methods=["GET"])
+    @admin_required
+    def admin_error_log():
+        """
+        Full error log from api_metrics.
+        Returns:
+          - summary: total errors, 4xx count, 5xx count, error rate, affected users
+          - by_endpoint: which endpoints generate the most errors
+          - by_status_code: distribution of error status codes
+          - top_affected_users: users who hit the most errors
+          - errors: paginated per-request error rows
+        Query params:
+          ?days=7        — time window (max 90)
+          ?page=1
+          ?per_page=50   — rows per page (max 200)
+          ?status_class  — "4xx" | "5xx" | "" (all errors)
+          ?endpoint      — filter to a specific endpoint path
+        """
+        try:
+            db = get_db()
+            cursor = db.cursor()
+
+            days = min(request.args.get("days", 7, type=int), 90)
+            page = request.args.get("page", 1, type=int)
+            per_page = min(request.args.get("per_page", 50, type=int), 200)
+            status_class = request.args.get("status_class", "")   # "4xx" | "5xx" | ""
+            endpoint_filter = request.args.get("endpoint", "").strip()
+            offset = (page - 1) * per_page
+
+            # Build dynamic WHERE clause.
+            # where_sql      — for single-table queries (FROM api_metrics, no alias)
+            # am_where_sql   — for JOIN queries where api_metrics is aliased as `am`
+            where_parts = [
+                "status_code >= 400",
+                "created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')",
+            ]
+            am_where_parts = [
+                "am.status_code >= 400",
+                "am.created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')",
+            ]
+            params = [days]
+
+            if status_class == "4xx":
+                where_parts.append("status_code < 500")
+                am_where_parts.append("am.status_code < 500")
+            elif status_class == "5xx":
+                where_parts.append("status_code >= 500")
+                am_where_parts.append("am.status_code >= 500")
+
+            if endpoint_filter:
+                where_parts.append("endpoint ILIKE %s")
+                am_where_parts.append("am.endpoint ILIKE %s")
+                params.append(f"%{endpoint_filter}%")
+
+            where_sql    = " AND ".join(where_parts)
+            am_where_sql = " AND ".join(am_where_parts)
+
+            # ── Summary stats ──────────────────────────────────
+            cursor.execute(
+                f"""
+                SELECT
+                    COUNT(*)                                                   AS total_errors,
+                    COUNT(CASE WHEN status_code < 500 THEN 1 END)             AS client_errors,
+                    COUNT(CASE WHEN status_code >= 500 THEN 1 END)            AS server_errors,
+                    COUNT(DISTINCT user_id)                                    AS affected_users,
+                    COUNT(DISTINCT CASE WHEN status_code >= 500
+                                        THEN user_id END)                     AS server_error_users,
+                    AVG(response_time_ms)                                     AS avg_response_ms,
+                    MAX(response_time_ms)                                     AS max_response_ms,
+                    MIN(created_at)                                           AS oldest_error,
+                    MAX(created_at)                                           AS newest_error
+                FROM api_metrics
+                WHERE {where_sql}
+                """,
+                params,
+            )
+            summary_row = cursor.fetchone()
+
+            # Total requests in same window for error rate
+            rate_params = [days]
+            rate_where = "created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')"
+            if endpoint_filter:
+                rate_where += " AND endpoint ILIKE %s"
+                rate_params.append(f"%{endpoint_filter}%")
+            cursor.execute(
+                f"SELECT COUNT(*) AS total FROM api_metrics WHERE {rate_where}",
+                rate_params,
+            )
+            total_requests = cursor.fetchone()["total"] or 1  # avoid divide-by-zero
+
+            # ── Errors by endpoint ─────────────────────────────
+            cursor.execute(
+                f"""
+                SELECT
+                    endpoint,
+                    COUNT(*)                                        AS error_count,
+                    COUNT(CASE WHEN status_code >= 500 THEN 1 END) AS server_errors,
+                    COUNT(CASE WHEN status_code < 500 THEN 1 END)  AS client_errors,
+                    AVG(response_time_ms)                          AS avg_response_ms,
+                    MAX(status_code)                               AS worst_status
+                FROM api_metrics
+                WHERE {where_sql}
+                GROUP BY endpoint
+                ORDER BY error_count DESC
+                LIMIT 15
+                """,
+                params,
+            )
+            by_endpoint = [
+                {
+                    "endpoint": r["endpoint"],
+                    "error_count": r["error_count"],
+                    "server_errors": r["server_errors"],
+                    "client_errors": r["client_errors"],
+                    "avg_response_ms": round(r["avg_response_ms"] or 0, 1),
+                    "worst_status": r["worst_status"],
+                }
+                for r in cursor.fetchall()
+            ]
+
+            # ── Errors by status code ──────────────────────────
+            cursor.execute(
+                f"""
+                SELECT
+                    status_code,
+                    COUNT(*) AS count,
+                    endpoint AS most_common_endpoint
+                FROM api_metrics
+                WHERE {where_sql}
+                GROUP BY status_code, endpoint
+                ORDER BY count DESC
+                """,
+                params,
+            )
+            # Collapse: one row per status_code, picking the most-common endpoint
+            status_map = {}
+            for r in cursor.fetchall():
+                sc = r["status_code"]
+                if sc not in status_map:
+                    status_map[sc] = {
+                        "status_code": sc,
+                        "count": r["count"],
+                        "most_common_endpoint": r["most_common_endpoint"],
+                    }
+                else:
+                    status_map[sc]["count"] += r["count"]
+            by_status_code = sorted(
+                status_map.values(), key=lambda x: x["count"], reverse=True
+            )
+
+            # ── Top affected users ────────────────────────────
+            cursor.execute(
+                f"""
+                SELECT
+                    am.user_id,
+                    u.email,
+                    u.name,
+                    COUNT(*)                                          AS error_count,
+                    COUNT(CASE WHEN am.status_code >= 500 THEN 1 END) AS server_errors,
+                    MAX(am.created_at)                               AS last_error_at
+                FROM api_metrics am
+                LEFT JOIN users u ON am.user_id = u.id
+                WHERE {am_where_sql}
+                  AND am.user_id IS NOT NULL
+                GROUP BY am.user_id, u.email, u.name
+                ORDER BY error_count DESC
+                LIMIT 10
+                """,
+                params,
+            )
+            top_affected_users = [
+                {
+                    "user_id": r["user_id"],
+                    "email": r["email"] or "Unknown",
+                    "name": r["name"] or "Unknown",
+                    "error_count": r["error_count"],
+                    "server_errors": r["server_errors"],
+                    "last_error_at": r["last_error_at"].isoformat()
+                    if r["last_error_at"]
+                    else None,
+                }
+                for r in cursor.fetchall()
+            ]
+
+            # ── Daily error trend ─────────────────────────────
+            cursor.execute(
+                f"""
+                SELECT
+                    DATE(created_at)                                       AS date,
+                    COUNT(*)                                               AS total_errors,
+                    COUNT(CASE WHEN status_code >= 500 THEN 1 END)        AS server_errors,
+                    COUNT(CASE WHEN status_code < 500 THEN 1 END)         AS client_errors
+                FROM api_metrics
+                WHERE {where_sql}
+                GROUP BY DATE(created_at)
+                ORDER BY date
+                """,
+                params,
+            )
+            daily_trend = [
+                {
+                    "date": str(r["date"]),
+                    "total_errors": r["total_errors"],
+                    "server_errors": r["server_errors"],
+                    "client_errors": r["client_errors"],
+                }
+                for r in cursor.fetchall()
+            ]
+
+            # ── Paginated per-request error rows ──────────────
+            cursor.execute(
+                f"""
+                SELECT
+                    am.id,
+                    am.endpoint,
+                    am.method,
+                    am.status_code,
+                    am.response_time_ms,
+                    am.ip_address,
+                    am.user_agent,
+                    am.created_at,
+                    am.user_id,
+                    u.email   AS user_email,
+                    u.name    AS user_name
+                FROM api_metrics am
+                LEFT JOIN users u ON am.user_id = u.id
+                WHERE {am_where_sql}
+                ORDER BY am.created_at DESC
+                LIMIT %s OFFSET %s
+                """,
+                params + [per_page, offset],
+            )
+            error_rows = cursor.fetchall()
+
+            # Total count for pagination
+            cursor.execute(
+                f"SELECT COUNT(*) AS total FROM api_metrics WHERE {where_sql}",
+                params,
+            )
+            total_errors = cursor.fetchone()["total"]
+
+            def fmt(dt):
+                return dt.isoformat() if dt else None
+
+            errors = [
+                {
+                    "id": r["id"],
+                    "endpoint": r["endpoint"],
+                    "method": r["method"],
+                    "status_code": r["status_code"],
+                    "response_time_ms": round(r["response_time_ms"] or 0, 1),
+                    "ip_address": r["ip_address"],
+                    "user_agent": (r["user_agent"] or "")[:120],
+                    "created_at": fmt(r["created_at"]),
+                    "user_id": r["user_id"],
+                    "user_email": r["user_email"],
+                    "user_name": r["user_name"],
+                }
+                for r in error_rows
+            ]
+
+            return jsonify(
+                {
+                    "summary": {
+                        "total_errors": summary_row["total_errors"] or 0,
+                        "client_errors": summary_row["client_errors"] or 0,
+                        "server_errors": summary_row["server_errors"] or 0,
+                        "affected_users": summary_row["affected_users"] or 0,
+                        "error_rate": round(
+                            ((summary_row["total_errors"] or 0) / total_requests) * 100, 2
+                        ),
+                        "avg_response_ms": round(
+                            summary_row["avg_response_ms"] or 0, 1
+                        ),
+                        "max_response_ms": round(
+                            summary_row["max_response_ms"] or 0, 1
+                        ),
+                        "oldest_error": fmt(summary_row["oldest_error"]),
+                        "newest_error": fmt(summary_row["newest_error"]),
+                    },
+                    "by_endpoint": by_endpoint,
+                    "by_status_code": by_status_code,
+                    "top_affected_users": top_affected_users,
+                    "daily_trend": daily_trend,
+                    "errors": errors,
+                    "pagination": {
+                        "page": page,
+                        "per_page": per_page,
+                        "total": total_errors,
+                        "pages": max(1, (total_errors + per_page - 1) // per_page),
+                    },
+                    "filters": {
+                        "days": days,
+                        "status_class": status_class,
+                        "endpoint": endpoint_filter,
+                    },
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"Error log fetch error: {e}")
+            return jsonify({"error": "Failed to fetch error log"}), 500

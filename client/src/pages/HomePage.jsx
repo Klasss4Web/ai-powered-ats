@@ -4,10 +4,11 @@ import AlertModal from "../components/AlertModal";
 import LoginModal from "../components/auth/LoginModal";
 import UsageStatus from "../components/UsageStatus";
 import { AUTH_CONSTANTS, BASE_URL } from "../constants/auth_constants";
+import { useAuth } from "../contexts/AuthContext";
 
 const HomePage = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState(null);
+  const { user, isAuthenticated, login, logout } = useAuth();
+
   const [usageInfo, setUsageInfo] = useState(null);
   const [savedCount, setSavedCount] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -18,56 +19,37 @@ const HomePage = () => {
     type: "info",
   });
 
+  /* ── fetch data when auth state becomes known ── */
   useEffect(() => {
-    const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
-    if (token) {
-      verifyAuth(token);
+    if (isAuthenticated && user) {
+      fetchHomeData();
     }
-  }, []);
+  }, [isAuthenticated, user]);
 
-  const verifyAuth = async (token) => {
+  const showAlert = (message, type = "info") => {
+    setAlertModal({ isOpen: true, message, type });
+  };
+
+  const closeAlert = () => {
+    setAlertModal({ isOpen: false, message: "", type: "info" });
+  };
+
+  const fetchHomeData = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${BASE_URL}/auth/verify`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        localStorage.removeItem(AUTH_CONSTANTS.TOKEN_KEY);
-        setIsAuthenticated(false);
-        return;
-      }
-
-      const data = await response.json();
-      const nextUser = {
-        id: data.user.id,
-        email: data.user.email,
-        name: data.user.name,
-        subscription_type: data.user.subscription_type,
-        subscription_expires_at: data.user.subscription_expires_at,
-      };
-
-      setUser(nextUser);
-      setIsAuthenticated(true);
-      fetchUsageInfo(token);
-      fetchSavedResumes(token);
+      await Promise.all([fetchUsageInfo(), fetchSavedResumes()]);
     } catch (error) {
-      console.error("Home auth verify error:", error);
-      localStorage.removeItem(AUTH_CONSTANTS.TOKEN_KEY);
+      console.error("Home data fetch error:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchUsageInfo = async (token) => {
+  const fetchUsageInfo = async () => {
     try {
+      const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
       const response = await fetch(`${BASE_URL}/user/usage`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
         const data = await response.json();
@@ -78,12 +60,11 @@ const HomePage = () => {
     }
   };
 
-  const fetchSavedResumes = async (token) => {
+  const fetchSavedResumes = async () => {
     try {
+      const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
       const response = await fetch(`${BASE_URL}/resumes`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
         const data = await response.json();
@@ -94,39 +75,16 @@ const HomePage = () => {
     }
   };
 
-  const showAlert = (message, type = "info") => {
-    setAlertModal({ isOpen: true, message, type });
-  };
-
-  const closeAlert = () => {
-    setAlertModal({ isOpen: false, message: "", type: "info" });
-  };
-
   const handleLoginSuccess = (userData) => {
-    const nextUser = {
-      id: userData.id,
-      email: userData.email,
-      name: userData.name,
-      subscription_type: userData.subscription_type,
-      subscription_expires_at: userData.subscription_expires_at,
-    };
-    setUser(nextUser);
-    setIsAuthenticated(true);
+    login(userData);
     setShowLoginModal(false);
     showAlert(`Welcome back, ${userData.name}!`, "success");
-    const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
-    if (token) {
-      fetchUsageInfo(token);
-      fetchSavedResumes(token);
-    }
   };
 
   const handleLogout = () => {
-    setIsAuthenticated(false);
-    setUser(null);
+    logout();
     setUsageInfo(null);
     setSavedCount(0);
-    localStorage.removeItem(AUTH_CONSTANTS.TOKEN_KEY);
     showAlert("Logged out successfully.", "info");
   };
 

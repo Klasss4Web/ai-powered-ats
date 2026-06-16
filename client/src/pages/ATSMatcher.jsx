@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 
 import fetchWithTimeout from "../configs/fetch";
+import { useUpgrade } from "../hooks/useUpgrade";
 import AlertModal from "../components/AlertModal";
 import UserAvatar from "../components/UserAvatar";
 import UsageStatus from "../components/UsageStatus";
@@ -318,6 +319,8 @@ const ATSMatcher = () => {
       type,
     });
   };
+
+  const { handleUpgrade: handleUpgradeToPremium } = useUpgrade({ showAlert });
 
   const closeAlert = () => {
     setAlertModal({
@@ -789,69 +792,6 @@ const ATSMatcher = () => {
     } catch (error) {
       console.error("Payment error:", error);
       showAlert("Payment failed. Please try again.", "error");
-    }
-  };
-
-  // Handle premium upgrade
-  const handleUpgradeToPremium = async (
-    planType = "monthly",
-    gateway = "paystack",
-  ) => {
-    if (!user) return;
-
-    setShowUpgradeModal(false);
-    showAlert("Initializing premium upgrade...", "info");
-
-    try {
-      const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
-
-      // Step 1: Get payment config
-      const configResponse = await fetch(`${BASE_URL}/payment/config`);
-      if (!configResponse.ok) {
-        showAlert("Failed to load payment configuration", "error");
-        return;
-      }
-
-      // Step 2: Initialize subscription upgrade
-      const upgradeResponse = await fetch(`${BASE_URL}/subscription/upgrade`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          plan_type: planType,
-          gateway: gateway,
-        }),
-      });
-
-      if (!upgradeResponse.ok) {
-        const error = await upgradeResponse.json();
-        showAlert(error.error || "Failed to initialize upgrade", "error");
-        return;
-      }
-
-      const upgradeData = await upgradeResponse.json();
-
-      if (upgradeData?.data?.authorization_url) {
-        // Redirect to Paystack payment page
-        window.location.href = upgradeData.data.authorization_url;
-      } else if (upgradeData?.data?.links) {
-        // PayPal response
-        const approvalLink = upgradeData.data.links.find(
-          (link) => link.rel === "approve",
-        );
-        if (approvalLink) {
-          window.location.href = approvalLink.href;
-        } else {
-          showAlert("Failed to initialize PayPal payment", "error");
-        }
-      } else {
-        showAlert("Failed to initialize payment", "error");
-      }
-    } catch (error) {
-      console.error("Upgrade error:", error);
-      showAlert("Failed to start upgrade process", "error");
     }
   };
 

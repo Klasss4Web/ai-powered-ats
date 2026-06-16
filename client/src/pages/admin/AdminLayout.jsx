@@ -1,50 +1,20 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { AUTH_CONSTANTS, BASE_URL } from "../../constants/auth_constants";
+import { useAuth } from "../../contexts/AuthContext";
 
 const AdminLayout = () => {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { user, isLoading: authLoading } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
+  /* ── redirect non-admins ── */
   useEffect(() => {
-    verifyAdminAccess();
-  }, []);
-
-  const verifyAdminAccess = async () => {
-    const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
-    if (!token) {
+    if (!authLoading && user && user.role !== "admin") {
       navigate("/");
-      return;
     }
+  }, [authLoading, user, navigate]);
 
-    try {
-      const response = await fetch(`${BASE_URL}/auth/verify`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) {
-        navigate("/");
-        return;
-      }
-
-      const data = await response.json();
-      if (data.user.role !== "admin") {
-        navigate("/");
-        return;
-      }
-
-      setUser(data.user);
-    } catch (error) {
-      console.error("Admin verification error:", error);
-      navigate("/");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) {
+  if (authLoading) {
     return (
       <div style={styles.loadingContainer}>
         <div style={styles.spinner}></div>
@@ -56,9 +26,7 @@ const AdminLayout = () => {
   const menuItems = [
     {
       section: "Overview",
-      items: [
-        { path: "/admin", label: "Dashboard", icon: "grid" },
-      ],
+      items: [{ path: "/admin", label: "Dashboard", icon: "grid" }],
     },
     {
       section: "Analytics",
@@ -73,6 +41,7 @@ const AdminLayout = () => {
       items: [
         { path: "/admin/users", label: "Users", icon: "users" },
         { path: "/admin/activity", label: "Activity Log", icon: "list" },
+        { path: "/admin/errors", label: "Error Log", icon: "alert" },
       ],
     },
   ];
@@ -128,6 +97,13 @@ const AdminLayout = () => {
           <line x1="3" y1="6" x2="3.01" y2="6"></line>
           <line x1="3" y1="12" x2="3.01" y2="12"></line>
           <line x1="3" y1="18" x2="3.01" y2="18"></line>
+        </svg>
+      ),
+      alert: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+          <line x1="12" y1="9" x2="12" y2="13"></line>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
         </svg>
       ),
     };

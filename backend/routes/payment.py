@@ -10,7 +10,8 @@ from flask import jsonify, g, request
 from db.database import get_db
 from config import (
     PAYSTACK_SECRET_KEY, PAYSTACK_PK_KEY, PAYSTACK_BASE_URL, PAYSTACK_CALLBACK_URL,
-    PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PAYPAL_BASE_URL, SUBSCRIPTION_PRICES
+    PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PAYPAL_BASE_URL,
+    SUBSCRIPTION_PRICES, SUBSCRIPTION_DURATIONS,
 )
 
 
@@ -93,11 +94,32 @@ def register_payment_routes(app):
                             approval_url = link['href']
                             break
 
+                    paypal_order_id = result['id']
+
+                    # HIGH-11: Persist payment_type and plan_type keyed by order_id so that
+                    # the verify endpoint can retrieve them without parsing the description text.
+                    db = get_db()
+                    cursor = db.cursor()
+                    cursor.execute('''
+                        INSERT INTO usage_tracking (user_id, action_type, date_created, metadata)
+                        VALUES (%s, %s, %s, %s)
+                    ''', (
+                        g.user_id,
+                        'paypal_order_pending',
+                        datetime.date.today(),
+                        json.dumps({
+                            'order_id': paypal_order_id,
+                            'payment_type': payment_type,
+                            'plan_type': plan_type,
+                        })
+                    ))
+                    db.commit()
+
                     return jsonify({
                         'status': True,
                         'data': {
                             'authorization_url': approval_url,
-                            'reference': result['id'],
+                            'reference': paypal_order_id,
                             'gateway': 'paypal'
                         }
                     }), 200
@@ -179,20 +201,20 @@ def register_payment_routes(app):
                 
                 if not existing:
                     if payment_type == 'subscription_upgrade':
-                        # Upgrade user to premium
-                        if plan_type == 'yearly':
-                            expires_at = datetime.datetime.now() + datetime.timedelta(days=365)
-                        else:  # monthly
-                            expires_at = datetime.datetime.now() + datetime.timedelta(days=30)
+                        # Determine target subscription type and expiry duration from metadata.
+                        # target_subscription is 'premium' or 'pro'; falls back to 'premium'.
+                        target_sub = metadata.get('target_subscription', 'premium')
+                        days = SUBSCRIPTION_DURATIONS.get(plan_type, 30)
+                        expires_at = datetime.datetime.utcnow() + datetime.timedelta(days=days)
 
                         cursor.execute('''
                             UPDATE users
-                            SET subscription_type = 'premium', subscription_expires_at = %s
+                            SET subscription_type = %s, subscription_expires_at = %s
                             WHERE id = %s
-                        ''', (expires_at.isoformat(), g.user_id))
+                        ''', (target_sub, expires_at.isoformat(), g.user_id))
 
                         db.commit()
-                        logger.info(f"User upgraded to premium ({plan_type})")
+                        logger.info(f"User {g.user_id} upgraded to {target_sub} ({plan_type})")
                     else:
                         # Record pay-as-you-go payment
                         amount_naira = result.get('data', {}).get('amount')
@@ -279,15 +301,31 @@ def register_payment_routes(app):
                     if capture_response.status_code == 201 and capture_result.get('status') == 'COMPLETED':
                         # Get payment details
                         amount_usd = float(result.get('purchase_units', [{}])[0].get('amount', {}).get('value', 0))
-                        description = result.get('purchase_units', [{}])[0].get('description', '')
-                        
-                        # Parse payment type from description
-                        if 'subscription' in description.lower():
-                            payment_type = 'subscription_upgrade'
-                            plan_type = 'monthly' if 'monthly' in description.lower() else 'yearly'
+
+                        # HIGH-11: Look up payment_type and plan_type from the DB record created
+                        # at order initialization — never infer from description text.
+                        db = get_db()
+                        cursor = db.cursor()
+                        cursor.execute('''
+                            SELECT metadata FROM usage_tracking
+                            WHERE user_id = %s
+                              AND action_type = 'paypal_order_pending'
+                              AND metadata::text LIKE %s
+                            LIMIT 1
+                        ''', (g.user_id, f'%"order_id": "{order_id}"%'))
+                        pending_row = cursor.fetchone()
+
+                        if pending_row and pending_row.get('metadata'):
+                            meta = pending_row['metadata'] if isinstance(pending_row['metadata'], dict) else json.loads(pending_row['metadata'])
+                            payment_type = meta.get('payment_type', 'pay_as_you_go')
+                            plan_type = meta.get('plan_type')
+                            target_sub = meta.get('target_subscription', 'premium')
                         else:
+                            # Fallback — cannot determine type; treat as pay-as-you-go
+                            logger.warning(f"No pending PayPal order record found for order_id {order_id}, user {g.user_id}")
                             payment_type = 'pay_as_you_go'
                             plan_type = None
+                            target_sub = 'premium'
 
                         # Check if payment already processed
                         db = get_db()
@@ -299,23 +337,21 @@ def register_payment_routes(app):
                             AND metadata::text LIKE %s
                         ''', (g.user_id, 'payment', f'%\"reference\":\"{order_id}\"%'))
                         existing = cursor.fetchone()
-                        
+
                         if not existing:
                             if payment_type == 'subscription_upgrade':
-                                # Upgrade user to premium
-                                if plan_type == 'yearly':
-                                    expires_at = datetime.datetime.now() + datetime.timedelta(days=365)
-                                else:  # monthly
-                                    expires_at = datetime.datetime.now() + datetime.timedelta(days=30)
+                                # Set correct subscription type and expiry from config
+                                days = SUBSCRIPTION_DURATIONS.get(plan_type, 30)
+                                expires_at = datetime.datetime.utcnow() + datetime.timedelta(days=days)
 
                                 cursor.execute('''
                                     UPDATE users
-                                    SET subscription_type = 'premium', subscription_expires_at = %s
+                                    SET subscription_type = %s, subscription_expires_at = %s
                                     WHERE id = %s
-                                ''', (expires_at.isoformat(), g.user_id))
+                                ''', (target_sub, expires_at.isoformat(), g.user_id))
 
                                 db.commit()
-                                print(f"User upgraded to premium ({plan_type}) via PayPal")
+                                logger.info(f"User {g.user_id} upgraded to {target_sub} ({plan_type}) via PayPal")
                             else:
                                 # Record pay-as-you-go payment
                                 cursor.execute('''
@@ -379,10 +415,11 @@ def register_payment_routes(app):
     @app.route('/api/subscription/upgrade', methods=['POST'])
     @token_required
     def upgrade_subscription():
-        """Upgrade user to premium subscription."""
+        """Upgrade user to a paid subscription (premium or pro)."""
         try:
             data = request.get_json()
-            plan_type = data.get('plan_type', 'monthly')  # monthly or yearly
+            # Valid plan_type values: 'monthly', 'yearly', 'pro_monthly', 'pro_yearly'
+            plan_type = data.get('plan_type', 'monthly')
             gateway = data.get('gateway', 'paystack')  # paystack or paypal
 
             if plan_type not in SUBSCRIPTION_PRICES or gateway not in ['paystack', 'paypal']:
@@ -390,12 +427,15 @@ def register_payment_routes(app):
 
             amount = SUBSCRIPTION_PRICES[plan_type][gateway]
 
+            # Derive which subscription_type this plan maps to
+            target_subscription = 'pro' if plan_type.startswith('pro_') else 'premium'
+
             # Get user email
             db = get_db()
             cursor = db.cursor()
             cursor.execute('SELECT email FROM users WHERE id = %s', (g.user_id,))
             user = cursor.fetchone()
-            
+
             if not user:
                 return jsonify({'error': 'User not found'}), 404
 
@@ -443,11 +483,32 @@ def register_payment_routes(app):
                             approval_url = link['href']
                             break
 
+                    paypal_order_id = result['id']
+
+                    # HIGH-11: Persist payment_type, plan_type, and target_subscription at order creation.
+                    db_sub = get_db()
+                    cursor_sub = db_sub.cursor()
+                    cursor_sub.execute('''
+                        INSERT INTO usage_tracking (user_id, action_type, date_created, metadata)
+                        VALUES (%s, %s, %s, %s)
+                    ''', (
+                        g.user_id,
+                        'paypal_order_pending',
+                        datetime.date.today(),
+                        json.dumps({
+                            'order_id': paypal_order_id,
+                            'payment_type': 'subscription_upgrade',
+                            'plan_type': plan_type,
+                            'target_subscription': target_subscription,
+                        })
+                    ))
+                    db_sub.commit()
+
                     return jsonify({
                         'status': True,
                         'data': {
                             'authorization_url': approval_url,
-                            'reference': result['id'],
+                            'reference': paypal_order_id,
                             'gateway': 'paypal'
                         }
                     }), 200
@@ -472,6 +533,7 @@ def register_payment_routes(app):
                         'user_id': g.user_id,
                         'type': 'subscription_upgrade',
                         'plan_type': plan_type,
+                        'target_subscription': target_subscription,
                         'gateway': gateway
                     }
                 }

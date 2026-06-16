@@ -1,4 +1,9 @@
+# Environment files — never commit real credentials
 .env
+backend/.env
+client/.env
+client/.env.local
+client/.env.production
 IMPLEMENTATION_COMPLETE.md
 QUICK_REFERENCE.md
 SEE_ALL_ANALYSIS_FEATURE.md

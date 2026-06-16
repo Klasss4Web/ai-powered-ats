@@ -5,3 +5,4 @@ export { default as TokenUsage } from "./TokenUsage";
 export { default as PerformanceAnalytics } from "./PerformanceAnalytics";
 export { default as UsersManagement } from "./UsersManagement";
 export { default as ActivityLog } from "./ActivityLog";
+export { default as ErrorLog } from "./ErrorLog";

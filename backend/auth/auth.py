@@ -2,6 +2,7 @@
 Authentication utilities and routes for ATS Matcher Backend (PostgreSQL + bcrypt)
 """
 
+import re
 import jwt
 from logger.app_logger import logger, log_auth_event
 import datetime
@@ -9,8 +10,16 @@ import secrets
 import bcrypt
 from functools import wraps
 from flask import request, jsonify, g
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from db.database import get_db
 from config import JWT_SECRET_KEY
+
+# ---------------------------------------------------------------------------
+# HIGH-2: Rate limiter — applied per remote IP address.
+# Limits are enforced on the login and register endpoints to prevent brute force.
+# ---------------------------------------------------------------------------
+limiter = Limiter(key_func=get_remote_address)
 
 
 # SECURE PASSWORD HASHING
@@ -71,7 +80,7 @@ def token_required(f):
 
         try:
             user_id = int(payload.get("user_id"))
-        except:
+        except (TypeError, ValueError):
             logger.warning(f"Invalid token payload for {request.method} {request.path}")
             return jsonify({"error": "Invalid token payload"}), 401
 
@@ -97,65 +106,31 @@ def token_required(f):
 
 
 def admin_required(f):
-    """Decorator that requires admin role."""
-
+    """
+    HIGH-4: Refactored to reuse token_required logic rather than duplicating it.
+    Only the admin role check is added on top.
+    """
+    @token_required
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        token = None
-
-        if "Authorization" in request.headers:
-            auth_header = request.headers["Authorization"]
-            if auth_header.startswith("Bearer "):
-                token = auth_header.split(" ")[1]
-
-        if not token:
+        if g.user.get("role") != "admin":
             logger.warning(
-                f"Missing token for admin route {request.method} {request.path}"
-            )
-            return jsonify({"error": "Token is missing"}), 401
-
-        payload = verify_token(token)
-        if not payload:
-            logger.warning(
-                f"Invalid/expired token for admin route {request.method} {request.path}"
-            )
-            return jsonify({"error": "Token is invalid or expired"}), 401
-
-        try:
-            user_id = int(payload.get("user_id"))
-        except:
-            return jsonify({"error": "Invalid token payload"}), 401
-
-        db = get_db()
-        cursor = db.cursor()
-
-        cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
-        user = cursor.fetchone()
-
-        if user is None:
-            logger.warning(f"Admin user {user_id} not found")
-            return jsonify({"error": "User not found"}), 401
-
-        # Check for admin role
-        if user.get("role") != "admin":
-            logger.warning(
-                f"Non-admin user {user_id} attempted to access admin route {request.path}"
+                f"Non-admin user {g.user_id} attempted to access admin route {request.path}"
             )
             return jsonify({"error": "Admin access required"}), 403
 
-        g.user = user
-        g.user_id = user["id"]
-        g.user_email = user["email"]
-
-        logger.debug(f"Admin access granted for user {user_id} to {request.path}")
-
+        logger.debug(f"Admin access granted for user {g.user_id} to {request.path}")
         return f(*args, **kwargs)
 
     return decorated_function
 
 
 def register_auth_routes(app):
+    # HIGH-2: Attach the limiter to the Flask app so it can store rate-limit state.
+    limiter.init_app(app)
+
     @app.route("/api/auth/register", methods=["POST"])
+    @limiter.limit("10 per minute")
     def register():
         try:
             data = request.get_json()
@@ -173,11 +148,15 @@ def register_auth_routes(app):
             password = data["password"]
             name = data["name"].strip()
 
-            if len(password) < 6:
-                logger.warning(f"Registration attempt with short password for {email}")
-                return jsonify(
-                    {"error": "Password must be at least 6 characters long"}
-                ), 400
+            # HIGH-3: Enforce stronger password requirements.
+            if len(password) < 8:
+                return jsonify({"error": "Password must be at least 8 characters long"}), 400
+            if not re.search(r"[A-Z]", password):
+                return jsonify({"error": "Password must contain at least one uppercase letter"}), 400
+            if not re.search(r"[0-9]", password):
+                return jsonify({"error": "Password must contain at least one number"}), 400
+            if not re.search(r"[^A-Za-z0-9]", password):
+                return jsonify({"error": "Password must contain at least one special character"}), 400
 
             db = get_db()
             cursor = db.cursor()
@@ -230,6 +209,7 @@ def register_auth_routes(app):
             return jsonify({"error": "Internal server error"}), 500
 
     @app.route("/api/auth/login", methods=["POST"])
+    @limiter.limit("10 per minute")
     def login():
         try:
             data = request.get_json()
@@ -269,8 +249,21 @@ def register_auth_routes(app):
             log_auth_event("login", user_email=email, user_id=user["id"], success=True)
             logger.info(f"User logged in: {email} (ID: {user['id']})")
 
+            # MED-14: Explicitly serialize the response to avoid raw psycopg datetime objects.
+            expires_at = user["subscription_expires_at"]
             return jsonify(
-                {"message": "Login successful", "token": token, "user": user}
+                {
+                    "message": "Login successful",
+                    "token": token,
+                    "user": {
+                        "id": user["id"],
+                        "email": user["email"],
+                        "name": user["name"],
+                        "role": user.get("role", "user"),
+                        "subscription_type": user["subscription_type"],
+                        "subscription_expires_at": expires_at.isoformat() if expires_at else None,
+                    },
+                }
             ), 200
 
         except Exception as e:
@@ -288,7 +281,7 @@ def register_auth_routes(app):
                     "id": g.user["id"],
                     "email": g.user["email"],
                     "name": g.user["name"],
-                    "role": g.user.get("role", "admin"),
+                    "role": g.user.get("role", "user"),
                     "subscription_type": g.user["subscription_type"],
                     "subscription_expires_at": g.user["subscription_expires_at"],
                 },
@@ -334,7 +327,10 @@ def register_auth_routes(app):
             )
             db.commit()
 
-            logger.info(f"Reset token: {reset_token}")
+            # HIGH-10: Never log the raw reset token — it can be used to take over accounts.
+            # TODO: Send the token via email using SendGrid/SES.
+            # The reset URL would be: {FRONTEND_URL}/reset-password?token={reset_token}
+            logger.info(f"Password reset requested for user {user['id']} — token generated (not emailed yet)")
 
             return jsonify(
                 {"message": "If the email exists, a reset link has been sent."}
@@ -355,8 +351,14 @@ def register_auth_routes(app):
             token = data["token"]
             new_password = data["new_password"]
 
-            if len(new_password) < 6:
-                return jsonify({"error": "Password too short"}), 400
+            if len(new_password) < 8:
+                return jsonify({"error": "Password must be at least 8 characters long"}), 400
+            if not re.search(r"[A-Z]", new_password):
+                return jsonify({"error": "Password must contain at least one uppercase letter"}), 400
+            if not re.search(r"[0-9]", new_password):
+                return jsonify({"error": "Password must contain at least one number"}), 400
+            if not re.search(r"[^A-Za-z0-9]", new_password):
+                return jsonify({"error": "Password must contain at least one special character"}), 400
 
             db = get_db()
             cursor = db.cursor()

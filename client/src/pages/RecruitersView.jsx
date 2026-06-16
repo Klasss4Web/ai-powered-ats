@@ -5,10 +5,16 @@ import UserAvatar from "../components/UserAvatar";
 import UsageStatus from "../components/UsageStatus";
 import UpgradeModal from "../components/UpgradeModal";
 import LoginModal from "../components/auth/LoginModal";
+import ConfirmModal from "../components/ConfirmModal";
 import { AUTH_CONSTANTS, BASE_URL } from "../constants/auth_constants";
+import { useAuth } from "../contexts/AuthContext";
+import { useFeatures } from "../contexts/FeaturesContext";
+import { useUpgrade } from "../hooks/useUpgrade";
 import AnimatedLoader from "../components/loaders/animated-loader/AnimatedLoader";
 
 const RecruitersView = () => {
+  const { user, isAuthenticated, login, logout } = useAuth();
+  const { isEnabled } = useFeatures();
   // Form state
   const [jobTitle, setJobTitle] = useState("");
   const [jobDescription, setJobDescription] = useState("");
@@ -37,8 +43,6 @@ const RecruitersView = () => {
   const [showCandidateModal, setShowCandidateModal] = useState(false);
 
   // Authentication state
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState(null);
   const [showLoginModal, setShowLoginModal] = useState(false);
 
   // Usage and subscription state
@@ -56,11 +60,42 @@ const RecruitersView = () => {
     type: "info",
   });
 
+  // Confirm modal state
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmModalData, setConfirmModalData] = useState(null);
+
   // Premium check state
   const [isPremiumUser, setIsPremiumUser] = useState(false);
 
+  // Email compose modal state
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [emailType, setEmailType] = useState("acceptance"); // "acceptance" | "rejection"
+  const [emailForm, setEmailForm] = useState({
+    to_email: "",
+    to_name: "",
+    subject: "",
+    body: "",
+  });
+  const [sendingEmail, setSendingEmail] = useState(false);
+
+  // Email templates state
+  const [emailTemplates, setEmailTemplates] = useState([]);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [showTemplatesModal, setShowTemplatesModal] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState(null);
+  const [templateForm, setTemplateForm] = useState({
+    name: "",
+    email_type: "custom",
+    subject_template: "",
+    body_template: "",
+  });
+
   // Initial page loading state
   const [initialLoading, setInitialLoading] = useState(true);
+
+  // Background job polling state
+  const [activeJobId, setActiveJobId] = useState(null);
+  const [jobProgress, setJobProgress] = useState({ progress: 0, total: 0, status: "" });
 
   // Sort results
   const sortedResults = results
@@ -95,13 +130,62 @@ const RecruitersView = () => {
   // Fetch usage info and sessions when authenticated
   useEffect(() => {
     if (isAuthenticated && user && isPremiumUser) {
-      Promise.all([fetchUsageInfo(), fetchSessions()]).finally(() => {
+      Promise.all([fetchUsageInfo(), fetchSessions(), fetchEmailTemplates()]).finally(() => {
         setInitialLoading(false);
       });
     } else if (isAuthenticated && user && !isPremiumUser) {
       setInitialLoading(false);
     }
   }, [isAuthenticated, user, isPremiumUser]);
+
+  // Poll active background job
+  useEffect(() => {
+    if (!activeJobId) return;
+    const poll = async () => {
+      try {
+        const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
+        const res = await fetch(`${BASE_URL}/jobs/${activeJobId}/status`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        setJobProgress({
+          progress: data.progress ?? 0,
+          total: data.total ?? 0,
+          status: data.status,
+        });
+
+        if (data.status === "completed") {
+          setActiveJobId(null);
+          setLoading(false);
+          if (data.result) {
+            setResults(data.result.results);
+            setResumeFiles([]);
+            showAlert(
+              `Successfully analyzed ${data.result.successful} candidate(s).`,
+              "success",
+            );
+            // Refresh active session if one was created/updated
+            if (data.result.session_id) {
+              loadSession(data.result.session_id);
+            }
+            fetchSessions();
+            fetchUsageInfo();
+          }
+        } else if (data.status === "failed") {
+          setActiveJobId(null);
+          setLoading(false);
+          showAlert(data.error_message || "Batch analysis failed.", "error");
+        }
+      } catch {
+        // silent fail on poll errors
+      }
+    };
+
+    poll(); // immediate first check
+    const interval = setInterval(poll, 2000);
+    return () => clearInterval(interval);
+  }, [activeJobId]);
 
   const verifyAuth = async (token) => {
     try {
@@ -110,15 +194,16 @@ const RecruitersView = () => {
       });
       if (response.ok) {
         const data = await response.json();
-        setUser(data.user);
-        setIsAuthenticated(true);
-        setIsPremiumUser(data.user.subscription_type === "premium");
+        login(data.user);
+        setIsPremiumUser(
+          ["premium", "pro"].includes(data.user.subscription_type),
+        );
       } else {
         throw new Error("Verification failed");
       }
     } catch (error) {
       console.error("Auth verification failed:", error);
-      localStorage.removeItem(AUTH_CONSTANTS.TOKEN_KEY);
+      logout();
       setInitialLoading(false);
       setShowLoginModal(true);
     }
@@ -140,6 +225,96 @@ const RecruitersView = () => {
     } finally {
       setLoadingUsage(false);
     }
+  };
+
+  const fetchEmailTemplates = async () => {
+    setLoadingTemplates(true);
+    try {
+      const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
+      const response = await fetch(`${BASE_URL}/recruiter/email-templates`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setEmailTemplates(data.templates || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch email templates:", error);
+    } finally {
+      setLoadingTemplates(false);
+    }
+  };
+
+  const saveTemplate = async () => {
+    if (!templateForm.name.trim() || !templateForm.body_template.trim()) {
+      showAlert("Name and message are required.", "warning");
+      return;
+    }
+    try {
+      const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
+      const url = editingTemplate
+        ? `${BASE_URL}/recruiter/email-templates/${editingTemplate.id}`
+        : `${BASE_URL}/recruiter/email-templates`;
+      const method = editingTemplate ? "PUT" : "POST";
+      const response = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(templateForm),
+      });
+      if (response.ok) {
+        showAlert(
+          editingTemplate ? "Template updated!" : "Template saved!",
+          "success",
+        );
+        setEditingTemplate(null);
+        setTemplateForm({
+          name: "",
+          email_type: "custom",
+          subject_template: "",
+          body_template: "",
+        });
+        fetchEmailTemplates();
+      } else {
+        const err = await response.json();
+        showAlert(err.error || "Failed to save template.", "error");
+      }
+    } catch {
+      showAlert("Network error. Please try again.", "error");
+    }
+  };
+
+  const deleteTemplate = async (templateId) => {
+    try {
+      const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
+      const response = await fetch(
+        `${BASE_URL}/recruiter/email-templates/${templateId}`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      if (response.ok) {
+        showAlert("Template deleted.", "success");
+        fetchEmailTemplates();
+      } else {
+        const err = await response.json();
+        showAlert(err.error || "Failed to delete template.", "error");
+      }
+    } catch {
+      showAlert("Network error. Please try again.", "error");
+    }
+  };
+
+  const applyTemplate = (template) => {
+    setEmailForm((prev) => ({
+      ...prev,
+      subject: template.subject_template || prev.subject,
+      body: template.body_template || prev.body,
+    }));
+    showAlert(`Template "${template.name}" applied.`, "success");
   };
 
   const fetchSessions = async () => {
@@ -187,11 +362,19 @@ const RecruitersView = () => {
     }
   };
 
-  const deleteSession = async (sessionId) => {
-    if (!confirm("Are you sure you want to delete this screening session?")) {
-      return;
-    }
+  const deleteSession = (sessionId) => {
+    setConfirmModalData({
+      title: "Delete Screening Session",
+      message:
+        "Are you sure you want to delete this screening session? This action cannot be undone.",
+      confirmText: "Delete",
+      onConfirm: () => executeDeleteSession(sessionId),
+    });
+    setShowConfirmModal(true);
+  };
 
+  const executeDeleteSession = async (sessionId) => {
+    setShowConfirmModal(false);
     try {
       const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
       const response = await fetch(
@@ -236,6 +419,9 @@ const RecruitersView = () => {
     setAlertModal({ isOpen: true, message, type });
   };
 
+  // Upgrade handler (shared hook)
+  const { handleUpgrade: handleUpgradeToPremium } = useUpgrade({ showAlert });
+
   const handleStartNewSession = () => {
     setActiveSession(null);
     setResults(null);
@@ -263,101 +449,92 @@ const RecruitersView = () => {
     setLoading(true);
     setError(null);
 
-    const formData = new FormData();
-    formData.append("job_description", jobDescription);
-    resumeFiles.forEach((file) => {
-      formData.append("resumes", file);
-    });
-
     try {
       const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
 
-      // If we have an active session, add to it; otherwise create new via batch-match
-      let endpoint = activeSession
-        ? `${BASE_URL}/recruiter/sessions/${activeSession.id}/analyze`
-        : `${BASE_URL}/batch-match`;
+      if (activeSession) {
+        // Continue existing session — synchronous
+        const formData = new FormData();
+        formData.append("job_description", jobDescription);
+        resumeFiles.forEach((file) => {
+          formData.append("resumes", file);
+        });
 
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-        body: formData,
-      });
+        const response = await fetch(
+          `${BASE_URL}/recruiter/sessions/${activeSession.id}/analyze`,
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token}` },
+            body: formData,
+          },
+        );
 
-      if (response.ok) {
-        const data = await response.json();
-
-        // If this was a new analysis (not continuing a session), create a session
-        if (!activeSession) {
-          // Create a new session to save the results
-          const sessionResponse = await fetch(
-            `${BASE_URL}/recruiter/sessions`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-              },
-              body: JSON.stringify({
-                job_title: jobTitle || "Untitled Position",
-                job_description: jobDescription,
-              }),
-            },
-          );
-
-          if (sessionResponse.ok) {
-            const sessionData = await sessionResponse.json();
-            const newSession = {
-              ...sessionData.session,
-              results: data.results,
-              total_candidates: data.successful,
-            };
-
-            // Update the session with results
-            await fetch(
-              `${BASE_URL}/recruiter/sessions/${newSession.id}/analyze`,
-              {
-                method: "POST",
-                headers: { Authorization: `Bearer ${token}` },
-                body: formData,
-              },
-            );
-
-            setActiveSession(newSession);
-            fetchSessions(); // Refresh sessions list
-          }
-        } else {
-          // Update active session with new results
+        if (response.ok) {
+          const data = await response.json();
           setActiveSession({
             ...activeSession,
             total_candidates: data.total_candidates,
           });
-          fetchSessions(); // Refresh sessions list
-        }
-
-        setResults(data.results);
-        setResumeFiles([]); // Clear file input
-        showAlert(
-          `Successfully analyzed ${data.successful || data.results.filter((r) => !r.error).length} candidate(s).`,
-          "success",
-        );
-        fetchUsageInfo(); // Refresh usage counter
-      } else {
-        const errorData = await response.json();
-        if (errorData.upgrade_required) {
-          setUpgradeModalData({
-            message: errorData.error,
-            type: "analysis",
-          });
-          setShowUpgradeModal(true);
+          setResults(data.results);
+          setResumeFiles([]);
+          showAlert(
+            `Successfully analyzed ${data.successful || data.results.filter((r) => !r.error).length} candidate(s).`,
+            "success",
+          );
+          fetchSessions();
+          fetchUsageInfo();
         } else {
-          setError(errorData.error || "An error occurred.");
+          const errorData = await response.json();
+          if (errorData.upgrade_required) {
+            setUpgradeModalData({
+              message: errorData.error,
+              type: "analysis",
+              subscriptionType: user?.subscription_type || "free",
+            });
+            setShowUpgradeModal(true);
+          } else {
+            setError(errorData.error || "An error occurred.");
+          }
+          setLoading(false);
+        }
+      } else {
+        // New analysis — async background job
+        const formData = new FormData();
+        formData.append("job_description", jobDescription);
+        if (jobTitle) {
+          formData.append("job_title", jobTitle);
+        }
+        resumeFiles.forEach((file) => {
+          formData.append("resumes", file);
+        });
+
+        const response = await fetch(`${BASE_URL}/batch-match-async`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setActiveJobId(data.job_id);
+          setJobProgress({ progress: 0, total: resumeFiles.length, status: "pending" });
+        } else {
+          const errorData = await response.json();
+          if (errorData.upgrade_required) {
+            setUpgradeModalData({
+              message: errorData.error,
+              type: "analysis",
+              subscriptionType: user?.subscription_type || "free",
+            });
+            setShowUpgradeModal(true);
+          } else {
+            setError(errorData.error || "An error occurred.");
+          }
+          setLoading(false);
         }
       }
     } catch (err) {
       setError("Network error. Please try again.");
-    } finally {
       setLoading(false);
     }
   };
@@ -445,6 +622,134 @@ const RecruitersView = () => {
     }
   };
 
+  const handleDownloadPDFReport = async () => {
+    if (!activeSession) {
+      showAlert("Save the session first to download a PDF report.", "warning");
+      return;
+    }
+    try {
+      const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
+      const response = await fetch(
+        `${BASE_URL}/recruiter/sessions/${activeSession.id}/report/pdf`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        const disposition = response.headers.get("content-disposition");
+        const filenameMatch = disposition && disposition.match(/filename="?([^"]+)"?/);
+        a.download = filenameMatch ? filenameMatch[1] : `screening_report_${jobTitle || "candidates"}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+        showAlert("PDF report downloaded!", "success");
+      } else {
+        const err = await response.json();
+        showAlert(err.error || "Failed to download PDF.", "error");
+      }
+    } catch {
+      showAlert("Network error. Please try again.", "error");
+    }
+  };
+
+  // ── Email helpers ──────────────────────────────────────────────────────────
+
+  const buildEmailBody = (type, candidate) => {
+    const name = candidate?.candidate_name || "there";
+    const title = jobTitle || "the position";
+    if (type === "acceptance") {
+      return `Hi ${name},\n\nThank you for applying for the ${title} role. After reviewing your application, we're pleased to move forward and would love to schedule a conversation with you.\n\nPlease reply to this email with your availability for an interview, and we'll arrange a suitable time.\n\nLooking forward to speaking with you.`;
+    }
+    return `Hi ${name},\n\nThank you for taking the time to apply for the ${title} role. After careful consideration, we've decided to move forward with other candidates whose experience more closely matches our current requirements.\n\nWe appreciate your interest and wish you the best in your search.`;
+  };
+
+  const openEmailModal = (type, candidate) => {
+    setEmailType(type);
+    setEmailForm({
+      to_email: candidate?.candidate_email || "",
+      to_name: candidate?.candidate_name || "",
+      subject: "",
+      body: buildEmailBody(type, candidate),
+    });
+    setShowEmailModal(true);
+  };
+
+  const handleSendEmail = async () => {
+    if (!emailForm.to_email.trim()) {
+      showAlert("Please enter the candidate's email address.", "warning");
+      return;
+    }
+    if (!emailForm.body.trim()) {
+      showAlert("Email body cannot be empty.", "warning");
+      return;
+    }
+
+    setSendingEmail(true);
+    try {
+      const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
+      const response = await fetch(`${BASE_URL}/recruiter/send-email`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          to_email: emailForm.to_email.trim(),
+          to_name: emailForm.to_name.trim(),
+          email_type: emailType,
+          subject: emailForm.subject.trim(),
+          body: emailForm.body.trim(),
+          job_title: jobTitle,
+          session_id: activeSession?.id ?? null,
+          candidate_filename: selectedCandidate?.filename ?? "",
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        showAlert(
+          data.error || "Failed to send email. Please try again.",
+          "error",
+        );
+        return;
+      }
+
+      // Persist email_status into the results array so both the table
+      // and the detail modal reflect it immediately and after reload.
+      const updatedResults = (results || []).map((r) =>
+        r.filename === selectedCandidate?.filename
+          ? { ...r, email_status: emailType }
+          : r,
+      );
+      setResults(updatedResults);
+
+      // Keep the open modal in sync
+      if (selectedCandidate?.filename) {
+        setSelectedCandidate((prev) =>
+          prev ? { ...prev, email_status: emailType } : prev,
+        );
+      }
+
+      showAlert(
+        `${emailType === "acceptance" ? "Acceptance" : "Rejection"} email sent to ${emailForm.to_email}.`,
+        "success",
+      );
+      setShowEmailModal(false);
+    } catch {
+      showAlert(
+        "Network error. Please check your connection and try again.",
+        "error",
+      );
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
   const getRecommendationBadge = (recommendation) => {
     const badges = {
       strongly_recommend: {
@@ -484,17 +789,13 @@ const RecruitersView = () => {
   };
 
   const handleLoginSuccess = (userData) => {
-    setUser(userData);
-    setIsAuthenticated(true);
-    setIsPremiumUser(userData.subscription_type === "premium");
+    login(userData);
+    setIsPremiumUser(["premium", "pro"].includes(userData.subscription_type));
     setShowLoginModal(false);
-    localStorage.setItem(AUTH_CONSTANTS.TOKEN_KEY, userData.token);
   };
 
   const handleLogout = () => {
-    setIsAuthenticated(false);
-    setUser(null);
-    localStorage.removeItem(AUTH_CONSTANTS.TOKEN_KEY);
+    logout();
     setShowLoginModal(true);
   };
 
@@ -550,6 +851,18 @@ const RecruitersView = () => {
     return (
       <div style={styles.initialLoaderContainer}>
         <AnimatedLoader text="Loading" />
+      </div>
+    );
+  }
+
+  // Feature flag gate
+  if (!isEnabled("recruiter_pipeline")) {
+    return (
+      <div style={styles.pageContainer}>
+        <div style={{ ...styles.mainContainer, textAlign: "center", paddingTop: "80px" }}>
+          <h2 style={{ color: "#666" }}>Recruiter Pipeline</h2>
+          <p style={{ color: "#888" }}>This feature is temporarily unavailable.</p>
+        </div>
       </div>
     );
   }
@@ -662,17 +975,29 @@ const RecruitersView = () => {
                       color: "#666",
                     }}
                   >
-                    {usageInfo.used_today || 0} / {usageInfo.daily_limit || 10}{" "}
+                    {usageInfo.current_usage ?? 0} /{" "}
+                    {usageInfo.effective_limit ?? usageInfo.daily_limit ?? 10}{" "}
                     analyses
                   </p>
                   <div style={styles.usageBar}>
                     <div
                       style={{
                         ...styles.usageBarFill,
-                        width: `${Math.min(100, ((usageInfo.used_today || 0) / (usageInfo.daily_limit || 10)) * 100)}%`,
+                        width: `${Math.min(100, ((usageInfo.current_usage ?? 0) / (usageInfo.effective_limit ?? usageInfo.daily_limit ?? 10)) * 100)}%`,
                       }}
                     />
                   </div>
+                  {usageInfo.remaining_analyses === 0 && (
+                    <p
+                      style={{
+                        margin: "5px 0 0 0",
+                        fontSize: "0.8em",
+                        color: "#d93025",
+                      }}
+                    >
+                      Daily limit reached
+                    </p>
+                  )}
                 </div>
               )}
             </>
@@ -710,20 +1035,30 @@ const RecruitersView = () => {
         ) : !isPremiumUser ? (
           <div style={styles.premiumRequired}>
             <div style={styles.premiumCard}>
-              <h2 style={{ color: "#1a73e8", marginBottom: "15px" }}>
-                Premium Feature
+              <h2 style={{ color: "#6366f1", marginBottom: "15px" }}>
+                Pro Plan Required
               </h2>
-              <p style={{ color: "#666", marginBottom: "20px" }}>
-                The Recruiters Tool is available exclusively for premium
-                subscribers. Upgrade your account to access batch resume
-                analysis and advanced recruiting features.
+              <p style={{ color: "#666", marginBottom: "8px" }}>
+                The Recruiters Tool is available exclusively on the{" "}
+                <strong>Pro plan</strong>. Upgrade to unlock batch resume
+                screening, recruiter reports, and up to 100 analyses per day.
+              </p>
+              <p
+                style={{
+                  color: "#888",
+                  fontSize: "13px",
+                  marginBottom: "20px",
+                }}
+              >
+                Pro plan — ₦100,000/month or $60/month
               </p>
               <button
                 onClick={() => {
                   setUpgradeModalData({
                     message:
-                      "Upgrade to premium to access the Recruiters Tool.",
+                      "Upgrade to the Pro plan to access the Recruiters Tool.",
                     type: "premium_required",
+                    subscriptionType: user?.subscription_type || "free",
                   });
                   setShowUpgradeModal(true);
                 }}
@@ -913,7 +1248,7 @@ const RecruitersView = () => {
                   <table style={styles.table}>
                     <thead>
                       <tr style={styles.tableHeader}>
-                        <th style={styles.th}>Candidate</th>
+                         <th style={styles.th}>Candidate</th>
                         <th
                           style={{ ...styles.th, cursor: "pointer" }}
                           onClick={() => handleSort("overall_match_score")}
@@ -942,12 +1277,16 @@ const RecruitersView = () => {
                         </th>
                         <th style={styles.th}>Years Exp.</th>
                         <th style={styles.th}>Recommendation</th>
+                        <th style={styles.th}>Email Status</th>
                         <th style={styles.th}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {sortedResults.map((result, index) => (
-                        <tr key={index} style={styles.tableRow}>
+                      {sortedResults.map((result) => (
+                        <tr
+                          key={result.filename || result.candidate_name}
+                          style={styles.tableRow}
+                        >
                           <td style={styles.td}>
                             <div>
                               <strong>
@@ -962,7 +1301,7 @@ const RecruitersView = () => {
                           </td>
                           {result.error ? (
                             <td
-                              colSpan="6"
+                              colSpan="7"
                               style={{ ...styles.td, color: "#d93025" }}
                             >
                               Error: {result.error}
@@ -997,6 +1336,35 @@ const RecruitersView = () => {
                               </td>
                               <td style={styles.td}>
                                 {getRecommendationBadge(result.recommendation)}
+                              </td>
+                              <td style={styles.td}>
+                                {result.email_status ? (
+                                  <span
+                                    style={{
+                                      display: "inline-block",
+                                      padding: "3px 10px",
+                                      borderRadius: 99,
+                                      fontSize: 12,
+                                      fontWeight: 600,
+                                      background:
+                                        result.email_status === "acceptance"
+                                          ? "#e6f4ea"
+                                          : "#fce8e6",
+                                      color:
+                                        result.email_status === "acceptance"
+                                          ? "#1e8e3e"
+                                          : "#d93025",
+                                    }}
+                                  >
+                                    {result.email_status === "acceptance"
+                                      ? "✓ Accepted"
+                                      : "✕ Rejected"}
+                                  </span>
+                                ) : (
+                                  <span style={{ color: "#aaa", fontSize: 12 }}>
+                                    —
+                                  </span>
+                                )}
                               </td>
                               <td style={styles.td}>
                                 <button
@@ -1040,6 +1408,31 @@ const RecruitersView = () => {
                 <p style={{ margin: "5px 0", color: "#666" }}>
                   {selectedCandidate.filename}
                 </p>
+                {/* Email sent badge */}
+                {selectedCandidate.email_status && (
+                  <span
+                    style={{
+                      display: "inline-block",
+                      marginTop: 6,
+                      padding: "3px 12px",
+                      borderRadius: 99,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      background:
+                        selectedCandidate.email_status === "acceptance"
+                          ? "#e6f4ea"
+                          : "#fce8e6",
+                      color:
+                        selectedCandidate.email_status === "acceptance"
+                          ? "#1e8e3e"
+                          : "#d93025",
+                    }}
+                  >
+                    {selectedCandidate.email_status === "acceptance"
+                      ? "✓ Acceptance email sent"
+                      : "✕ Rejection email sent"}
+                  </span>
+                )}
                 {getRecommendationBadge(selectedCandidate.recommendation)}
               </div>
 
@@ -1182,9 +1575,566 @@ const RecruitersView = () => {
                 </div>
               </div>
             </div>
-            <div style={styles.modalFooter}>
+            <div
+              style={{
+                ...styles.modalFooter,
+                justifyContent: "space-between",
+                flexWrap: "wrap",
+                gap: 10,
+              }}
+            >
+              {/* Email action buttons */}
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button
+                  onClick={() =>
+                    openEmailModal("acceptance", selectedCandidate)
+                  }
+                  disabled={selectedCandidate?.email_status === "acceptance"}
+                  title={
+                    selectedCandidate?.email_status === "acceptance"
+                      ? "Acceptance email already sent"
+                      : ""
+                  }
+                  style={{
+                    padding: "9px 18px",
+                    backgroundColor: "#1e8e3e",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 8,
+                    cursor:
+                      selectedCandidate?.email_status === "acceptance"
+                        ? "not-allowed"
+                        : "pointer",
+                    fontSize: 14,
+                    fontWeight: 600,
+                    opacity:
+                      selectedCandidate?.email_status === "acceptance"
+                        ? 0.6
+                        : 1,
+                  }}
+                >
+                  {selectedCandidate?.email_status === "acceptance"
+                    ? "Accepted"
+                    : "Send Acceptance"}
+                </button>
+                <button
+                  onClick={() => openEmailModal("rejection", selectedCandidate)}
+                  disabled={selectedCandidate?.email_status === "rejection"}
+                  title={
+                    selectedCandidate?.email_status === "rejection"
+                      ? "Rejection email already sent"
+                      : ""
+                  }
+                  style={{
+                    padding: "9px 18px",
+                    backgroundColor: "#d93025",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 8,
+                    cursor:
+                      selectedCandidate?.email_status === "rejection"
+                        ? "not-allowed"
+                        : "pointer",
+                    fontSize: 14,
+                    fontWeight: 600,
+                    opacity:
+                      selectedCandidate?.email_status === "rejection"
+                        ? 0.6
+                        : 1,
+                  }}
+                >
+                  {selectedCandidate?.email_status === "rejection"
+                    ? "Rejected"
+                    : "Send Rejection"}
+                </button>
+              </div>
+              <button
+                onClick={() => setShowTemplatesModal(true)}
+                style={{
+                  padding: "9px 18px",
+                  backgroundColor: "transparent",
+                  color: "#1a73e8",
+                  border: "1px solid #1a73e8",
+                  borderRadius: 8,
+                  cursor: "pointer",
+                  fontSize: 13,
+                  fontWeight: 600,
+                }}
+              >
+                Manage Templates
+              </button>
               <button
                 onClick={() => setShowCandidateModal(false)}
+                style={styles.closeModalButton}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Email Compose Modal */}
+      {showEmailModal && (
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.modalContent, maxWidth: 560 }}>
+            <div style={styles.modalHeader}>
+              <h2 className="section-title">
+                {emailType === "acceptance"
+                  ? "Send Acceptance Email"
+                  : "Send Rejection Email"}
+              </h2>
+              <button
+                onClick={() => setShowEmailModal(false)}
+                style={styles.closeButton}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={styles.modalBody}>
+              {/* To email */}
+              <div style={{ marginBottom: 14 }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontWeight: 600,
+                    fontSize: 13,
+                    marginBottom: 5,
+                    color: "#333",
+                  }}
+                >
+                  Candidate Email *
+                </label>
+                <input
+                  type="email"
+                  value={emailForm.to_email}
+                  onChange={(e) =>
+                    setEmailForm((f) => ({ ...f, to_email: e.target.value }))
+                  }
+                  placeholder="candidate@example.com"
+                  style={{
+                    width: "100%",
+                    padding: "9px 12px",
+                    borderRadius: 8,
+                    border: "1px solid #ddd",
+                    fontSize: 14,
+                    boxSizing: "border-box",
+                  }}
+                />
+                {!emailForm.to_email && (
+                  <p
+                    style={{
+                      fontSize: 12,
+                      color: "#f57f17",
+                      margin: "4px 0 0",
+                    }}
+                  >
+                    No email found in resume. Please enter it manually.
+                  </p>
+                )}
+              </div>
+
+              {/* Template Selector */}
+              {emailTemplates.length > 0 && (
+                <div style={{ marginBottom: 14 }}>
+                  <label
+                    style={{
+                      display: "block",
+                      fontWeight: 600,
+                      fontSize: 13,
+                      marginBottom: 5,
+                      color: "#333",
+                    }}
+                  >
+                    Apply Template{" "}
+                    <span style={{ fontWeight: 400, color: "#888" }}>
+                      (optional)
+                    </span>
+                  </label>
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      const t = emailTemplates.find(
+                        (tmpl) => tmpl.id === parseInt(e.target.value),
+                      );
+                      if (t) applyTemplate(t);
+                      e.target.value = "";
+                    }}
+                    style={{
+                      width: "100%",
+                      padding: "9px 12px",
+                      borderRadius: 8,
+                      border: "1px solid #ddd",
+                      fontSize: 14,
+                      backgroundColor: "#fff",
+                    }}
+                  >
+                    <option value="">-- Select a template --</option>
+                    {emailTemplates.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name} ({t.email_type})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Subject */}
+              <div style={{ marginBottom: 14 }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontWeight: 600,
+                    fontSize: 13,
+                    marginBottom: 5,
+                    color: "#333",
+                  }}
+                >
+                  Subject{" "}
+                  <span style={{ fontWeight: 400, color: "#888" }}>
+                    (optional — auto-generated if blank)
+                  </span>
+                </label>
+                <input
+                  type="text"
+                  value={emailForm.subject}
+                  onChange={(e) =>
+                    setEmailForm((f) => ({ ...f, subject: e.target.value }))
+                  }
+                  placeholder={
+                    emailType === "acceptance"
+                      ? `Your application for ${jobTitle || "the position"} — Next Steps`
+                      : `Your application for ${jobTitle || "the position"} — Update`
+                  }
+                  style={{
+                    width: "100%",
+                    padding: "9px 12px",
+                    borderRadius: 8,
+                    border: "1px solid #ddd",
+                    fontSize: 14,
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+
+              {/* Body */}
+              <div style={{ marginBottom: 6 }}>
+                <label
+                  style={{
+                    display: "block",
+                    fontWeight: 600,
+                    fontSize: 13,
+                    marginBottom: 5,
+                    color: "#333",
+                  }}
+                >
+                  Message *
+                </label>
+                <textarea
+                  value={emailForm.body}
+                  onChange={(e) =>
+                    setEmailForm((f) => ({ ...f, body: e.target.value }))
+                  }
+                  rows={10}
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px",
+                    borderRadius: 8,
+                    border: "1px solid #ddd",
+                    fontSize: 14,
+                    lineHeight: 1.6,
+                    resize: "vertical",
+                    fontFamily: "inherit",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+              <p style={{ fontSize: 12, color: "#888", margin: "4px 0 0" }}>
+                You can edit the message above before sending. This email will
+                be sent via your registered sender address.
+              </p>
+            </div>
+
+            <div
+              style={{
+                ...styles.modalFooter,
+                justifyContent: "space-between",
+                flexWrap: "wrap",
+                gap: 10,
+              }}
+            >
+              <button
+                onClick={() => setShowEmailModal(false)}
+                style={styles.closeModalButton}
+                disabled={sendingEmail}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSendEmail}
+                disabled={sendingEmail}
+                style={{
+                  padding: "10px 24px",
+                  backgroundColor:
+                    emailType === "acceptance" ? "#1e8e3e" : "#d93025",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  cursor: sendingEmail ? "not-allowed" : "pointer",
+                  fontSize: 14,
+                  fontWeight: 600,
+                  opacity: sendingEmail ? 0.7 : 1,
+                }}
+              >
+                {sendingEmail
+                  ? "Sending..."
+                  : `Send ${emailType === "acceptance" ? "Acceptance" : "Rejection"} Email`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Email Templates Management Modal */}
+      {showTemplatesModal && (
+        <div style={styles.modalOverlay}>
+          <div style={{ ...styles.modalContent, maxWidth: 560 }}>
+            <div style={styles.modalHeader}>
+              <h2 className="section-title">Email Templates</h2>
+              <button
+                onClick={() => {
+                  setShowTemplatesModal(false);
+                  setEditingTemplate(null);
+                  setTemplateForm({
+                    name: "",
+                    email_type: "custom",
+                    subject_template: "",
+                    body_template: "",
+                  });
+                }}
+                style={styles.closeButton}
+              >
+                ✕
+              </button>
+            </div>
+            <div style={styles.modalBody}>
+              {/* Template Form */}
+              <div
+                style={{
+                  backgroundColor: "#f9f9f9",
+                  padding: "16px",
+                  borderRadius: 8,
+                  marginBottom: 20,
+                }}
+              >
+                <h4 style={{ margin: "0 0 12px 0", color: "#1a73e8" }}>
+                  {editingTemplate ? "Edit Template" : "New Template"}
+                </h4>
+                <div style={{ marginBottom: 10 }}>
+                  <input
+                    type="text"
+                    placeholder="Template name"
+                    value={templateForm.name}
+                    onChange={(e) =>
+                      setTemplateForm((f) => ({ ...f, name: e.target.value }))
+                    }
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px",
+                      borderRadius: 6,
+                      border: "1px solid #ddd",
+                      fontSize: 14,
+                      boxSizing: "border-box",
+                      marginBottom: 8,
+                    }}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Subject (optional)"
+                    value={templateForm.subject_template}
+                    onChange={(e) =>
+                      setTemplateForm((f) => ({
+                        ...f,
+                        subject_template: e.target.value,
+                      }))
+                    }
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px",
+                      borderRadius: 6,
+                      border: "1px solid #ddd",
+                      fontSize: 14,
+                      boxSizing: "border-box",
+                      marginBottom: 8,
+                    }}
+                  />
+                  <textarea
+                    placeholder="Message body"
+                    value={templateForm.body_template}
+                    onChange={(e) =>
+                      setTemplateForm((f) => ({
+                        ...f,
+                        body_template: e.target.value,
+                      }))
+                    }
+                    rows={5}
+                    style={{
+                      width: "100%",
+                      padding: "8px 12px",
+                      borderRadius: 6,
+                      border: "1px solid #ddd",
+                      fontSize: 14,
+                      boxSizing: "border-box",
+                      fontFamily: "inherit",
+                      resize: "vertical",
+                    }}
+                  />
+                </div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button
+                    onClick={saveTemplate}
+                    style={{
+                      padding: "8px 18px",
+                      backgroundColor: "#1a73e8",
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: 6,
+                      cursor: "pointer",
+                      fontWeight: 600,
+                      fontSize: 13,
+                    }}
+                  >
+                    {editingTemplate ? "Update" : "Save"} Template
+                  </button>
+                  {editingTemplate && (
+                    <button
+                      onClick={() => {
+                        setEditingTemplate(null);
+                        setTemplateForm({
+                          name: "",
+                          email_type: "custom",
+                          subject_template: "",
+                          body_template: "",
+                        });
+                      }}
+                      style={{
+                        padding: "8px 18px",
+                        backgroundColor: "#666",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: 6,
+                        cursor: "pointer",
+                        fontWeight: 600,
+                        fontSize: 13,
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Templates List */}
+              {loadingTemplates ? (
+                <p style={{ color: "#666", textAlign: "center" }}>Loading...</p>
+              ) : emailTemplates.length === 0 ? (
+                <p style={{ color: "#666", textAlign: "center" }}>
+                  No templates yet. Create one above.
+                </p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {emailTemplates.map((t) => (
+                    <div
+                      key={t.id}
+                      style={{
+                        padding: "12px",
+                        border: "1px solid #eee",
+                        borderRadius: 8,
+                        backgroundColor: "#fff",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "flex-start",
+                      }}
+                    >
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div
+                          style={{
+                            fontWeight: 600,
+                            fontSize: 14,
+                            color: "#333",
+                            marginBottom: 4,
+                          }}
+                        >
+                          {t.name}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "#888",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        >
+                          {t.subject_template || "No subject"}
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", gap: 6, marginLeft: 8 }}>
+                        <button
+                          onClick={() => {
+                            setEditingTemplate(t);
+                            setTemplateForm({
+                              name: t.name,
+                              email_type: t.email_type,
+                              subject_template: t.subject_template || "",
+                              body_template: t.body_template,
+                            });
+                          }}
+                          style={{
+                            padding: "4px 10px",
+                            fontSize: 12,
+                            borderRadius: 4,
+                            border: "1px solid #1a73e8",
+                            background: "#fff",
+                            color: "#1a73e8",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => deleteTemplate(t.id)}
+                          style={{
+                            padding: "4px 10px",
+                            fontSize: 12,
+                            borderRadius: 4,
+                            border: "1px solid #d93025",
+                            background: "#fff",
+                            color: "#d93025",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div style={styles.modalFooter}>
+              <button
+                onClick={() => {
+                  setShowTemplatesModal(false);
+                  setEditingTemplate(null);
+                  setTemplateForm({
+                    name: "",
+                    email_type: "custom",
+                    subject_template: "",
+                    body_template: "",
+                  });
+                }}
                 style={styles.closeModalButton}
               >
                 Close
@@ -1277,6 +2227,15 @@ const RecruitersView = () => {
                 >
                   ⬇️ Download Report
                 </button>
+                <button
+                  onClick={handleDownloadPDFReport}
+                  style={{
+                    ...styles.actionButton,
+                    backgroundColor: "#d93025",
+                  }}
+                >
+                  📄 Download PDF
+                </button>
               </div>
             </div>
             <div style={styles.modalFooter}>
@@ -1300,7 +2259,8 @@ const RecruitersView = () => {
       <UpgradeModal
         isOpen={showUpgradeModal}
         onClose={closeUpgradeModal}
-        data={upgradeModalData}
+        modalData={upgradeModalData}
+        onUpgradeToPremium={handleUpgradeToPremium}
       />
       <AlertModal
         isOpen={alertModal.isOpen}
@@ -1308,7 +2268,55 @@ const RecruitersView = () => {
         type={alertModal.type}
         onClose={closeAlertModal}
       />
-      {loading && <AnimatedLoader text="Analyzing" />}
+      {confirmModalData && (
+        <ConfirmModal
+          isOpen={showConfirmModal}
+          onClose={() => setShowConfirmModal(false)}
+          onConfirm={confirmModalData.onConfirm}
+          title={confirmModalData.title}
+          message={confirmModalData.message}
+          confirmText={confirmModalData.confirmText}
+        />
+      )}
+      {/* Background Job Progress Overlay */}
+      {activeJobId && (
+        <div style={styles.jobProgressOverlay}>
+          <div style={styles.jobProgressCard}>
+            <AnimatedLoader
+              text="Analyzing candidates in background"
+              helperText={`${jobProgress.progress} of ${jobProgress.total} processed`}
+            />
+            <div style={styles.progressBarContainer}>
+              <div
+                style={{
+                  ...styles.progressBarFill,
+                  width: `${jobProgress.total > 0 ? (jobProgress.progress / jobProgress.total) * 100 : 0}%`,
+                }}
+              />
+            </div>
+            <p style={styles.progressLabel}>
+              {Math.round(
+                jobProgress.total > 0
+                  ? (jobProgress.progress / jobProgress.total) * 100
+                  : 0,
+              )}
+              % Complete
+            </p>
+            {jobProgress.status && (
+              <p style={styles.progressStatus}>{jobProgress.status}</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Generic loading overlay for synchronous analysis */}
+      {loading && !activeJobId && (
+        <div style={styles.jobProgressOverlay}>
+          <div style={styles.jobProgressCard}>
+            <AnimatedLoader text="Analyzing" />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -1839,6 +2847,55 @@ const styles = {
     borderRadius: "8px",
     cursor: "pointer",
     fontWeight: "600",
+  },
+  jobProgressOverlay: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(255, 255, 255, 0.85)",
+    backdropFilter: "blur(4px)",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 1002,
+  },
+  jobProgressCard: {
+    backgroundColor: "#fff",
+    padding: "40px 50px",
+    borderRadius: "16px",
+    boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    minWidth: "320px",
+  },
+  progressBarContainer: {
+    width: "100%",
+    height: "10px",
+    backgroundColor: "#e0e0e0",
+    borderRadius: "5px",
+    overflow: "hidden",
+    marginTop: "20px",
+  },
+  progressBarFill: {
+    height: "100%",
+    backgroundColor: "#1a73e8",
+    borderRadius: "5px",
+    transition: "width 0.3s ease",
+  },
+  progressLabel: {
+    marginTop: "12px",
+    fontWeight: "600",
+    color: "#1a73e8",
+    fontSize: "0.95em",
+  },
+  progressStatus: {
+    marginTop: "8px",
+    fontSize: "0.85em",
+    color: "#666",
+    textTransform: "capitalize",
   },
 };
 
