@@ -1,8 +1,6 @@
 import { useState } from "react";
-import { AUTH_CONSTANTS } from "../constants/auth_constants";
-
-const BASE_URL =
-  "http://ats-matcher-backend-alb-1819594825.eu-west-2.elb.amazonaws.com/api";
+import { AUTH_CONSTANTS, BASE_URL } from "../constants/auth_constants";
+import fetchWithTimeout from "../configs/fetch";
 
 /* ─── tiny helpers ─────────────────────────────────────────────────────── */
 
@@ -132,31 +130,39 @@ const UpgradeModal = ({
     if (!manualReference.trim()) return;
     setLoadingManual(true);
     try {
-      const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
-      const response = await fetch(
-        `${BASE_URL}/payment/manual-verify/${manualReference}`,
+      const response = await fetchWithTimeout(
+        `/payment/manual-verify/${manualReference}`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
           body: JSON.stringify({ gateway: manualGateway }),
         },
       );
       if (response.ok) {
-        alert(
-          "Payment verified successfully! Your usage limit has been updated.",
-        );
+        if (window.showToast) {
+          window.showToast(
+            "Payment verified successfully! Your usage limit has been updated.",
+            "success",
+          );
+        }
         setManualReference("");
         window.location.reload();
       } else {
-        const err = await response.json();
-        alert(`Verification failed: ${err.error || "Unknown error"}`);
+        const err = await response.json().catch(() => ({}));
+        if (window.showToast) {
+          window.showToast(
+            `Verification failed: ${err.error || "Unknown error"}`,
+            "error",
+          );
+        }
       }
     } catch (err) {
       console.error("Manual verification error:", err);
-      alert("Verification failed. Check console for details.");
+      if (window.showToast) {
+        window.showToast(
+          "Verification failed. Check your connection and try again.",
+          "error",
+        );
+      }
     } finally {
       setLoadingManual(false);
     }
@@ -334,7 +340,7 @@ const UpgradeModal = ({
                   <div style={{ fontSize: "13px", color: "#64748b" }}>
                     Single analysis &nbsp;·&nbsp;
                     <strong style={{ color: "#1a73e8" }}>
-                      {selectedGateway === "paypal" ? "$1" : "₦1,000"}
+                      {selectedGateway === "paypal" ? "$2" : "₦2,000"}
                     </strong>
                   </div>
                 </div>
@@ -386,7 +392,7 @@ const UpgradeModal = ({
                 >
                   {loadingPayment
                     ? "Processing..."
-                    : `Pay ${selectedGateway === "paypal" ? "$1" : "₦1,000"} & Continue`}
+                    : `Pay ${selectedGateway === "paypal" ? "$2" : "₦2,000"} & Continue`}
                 </button>
               </div>
 
@@ -409,7 +415,7 @@ const UpgradeModal = ({
               }}
             >
               {/* billing cycle */}
-              <div style={{ ...s.pillWrap(), flex: "0 0 auto" }}>
+              <div style={{ ...s.pillWrap(), flex: "1 0 auto" }}>
                 {["monthly", "yearly"].map((cycle) => (
                   <button
                     key={cycle}
@@ -437,7 +443,7 @@ const UpgradeModal = ({
               </div>
 
               {/* payment gateway */}
-              <div style={{ ...s.pillWrap(), flex: "0 0 auto" }}>
+              <div style={{ ...s.pillWrap(), flex: "1 0 auto" }}>
                 {["paystack", "paypal"].map((gw) => (
                   <button
                     key={gw}

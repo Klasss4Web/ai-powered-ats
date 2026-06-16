@@ -22,6 +22,8 @@ from logger.app_logger import logger
 _executor = concurrent.futures.ThreadPoolExecutor(max_workers=3)
 _running = True
 
+MODEL = "openai/gpt-oss-120b"
+
 
 def _get_db_conn():
     """Standalone DB connection for worker threads (no Flask g)."""
@@ -91,6 +93,7 @@ def _llm_call(prompt, endpoint="/api/batch-match"):
         # Fallback: try to use whatever LLM is available
         logger.error("LLM not available for background job")
         return None
+    
 
 
 def _llm_call_with_openai(prompt):
@@ -98,9 +101,11 @@ def _llm_call_with_openai(prompt):
     try:
         from openai import OpenAI
         import os
-        client = OpenClient(api_key=os.getenv("OPENAI_API_KEY"))
+        # client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=os.getenv("OPENROUTER_API_KEY"))
         resp = client.chat.completions.create(
-            model="gpt-4o-mini",
+            # model="gpt-4o-mini",
+            model=MODEL,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,
         )

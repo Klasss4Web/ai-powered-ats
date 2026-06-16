@@ -43,7 +43,11 @@ const AdminLayout = () => {
     {
       section: "Analytics",
       items: [
-        { path: "/admin/traffic", label: "Traffic & Usage", icon: "trending-up" },
+        {
+          path: "/admin/traffic",
+          label: "Traffic & Usage",
+          icon: "trending-up",
+        },
         { path: "/admin/tokens", label: "Token Usage", icon: "cpu" },
         { path: "/admin/performance", label: "Performance", icon: "activity" },
       ],
@@ -52,6 +56,16 @@ const AdminLayout = () => {
       section: "Management",
       items: [
         { path: "/admin/users", label: "Users", icon: "users" },
+        {
+          path: "/admin/subscriptions",
+          label: "Subscriptions",
+          icon: "credit-card",
+        },
+        {
+          path: "/admin/feature-flags",
+          label: "Feature Flags",
+          icon: "toggle",
+        },
         { path: "/admin/activity", label: "Activity Log", icon: "list" },
         { path: "/admin/errors", label: "Error Log", icon: "alert" },
       ],
@@ -61,7 +75,14 @@ const AdminLayout = () => {
   const getIcon = (iconName) => {
     const icons = {
       grid: (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
           <rect x="3" y="3" width="7" height="7"></rect>
           <rect x="14" y="3" width="7" height="7"></rect>
           <rect x="14" y="14" width="7" height="7"></rect>
@@ -69,13 +90,27 @@ const AdminLayout = () => {
         </svg>
       ),
       "trending-up": (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
           <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
           <polyline points="17 6 23 6 23 12"></polyline>
         </svg>
       ),
       cpu: (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
           <rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect>
           <rect x="9" y="9" width="6" height="6"></rect>
           <line x1="9" y1="1" x2="9" y2="4"></line>
@@ -89,12 +124,26 @@ const AdminLayout = () => {
         </svg>
       ),
       activity: (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
           <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
         </svg>
       ),
       users: (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
           <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
           <circle cx="9" cy="7" r="4"></circle>
           <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
@@ -102,7 +151,14 @@ const AdminLayout = () => {
         </svg>
       ),
       list: (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
           <line x1="8" y1="6" x2="21" y2="6"></line>
           <line x1="8" y1="12" x2="21" y2="12"></line>
           <line x1="8" y1="18" x2="21" y2="18"></line>
@@ -112,10 +168,47 @@ const AdminLayout = () => {
         </svg>
       ),
       alert: (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+        <svg
+          width="18"
+          height="18"
+          viewBox="[PHONE NUMBER_REDACTED]"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <path d="M10.29 3.86L1.82 18a2 2 [PHONE NUMBER_REDACTED]h16.94a2 2 [PHONE NUMBER_REDACTED]L13.71 3.86a2 2 [PHONE NUMBER_REDACTED]z"></path>
           <line x1="12" y1="9" x2="12" y2="13"></line>
           <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+      ),
+      toggle: (
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <rect x="1" y="5" width="22" height="14" rx="7" ry="7"></rect>
+          <circle cx="8" cy="12" r="3"></circle>
+        </svg>
+      ),
+      "credit-card": (
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+          <line x1="1" y1="10" x2="23" y2="10"></line>
         </svg>
       ),
     };
@@ -125,11 +218,18 @@ const AdminLayout = () => {
   return (
     <div style={styles.container}>
       {/* Sidebar */}
-      <aside style={{ ...styles.sidebar, width: sidebarCollapsed ? "60px" : "260px" }}>
+      <aside
+        style={{
+          ...styles.sidebar,
+          width: sidebarCollapsed ? "60px" : "260px",
+        }}
+      >
         <div style={styles.sidebarHeader}>
           <div style={styles.logoContainer}>
             <span style={styles.logoIcon}>A</span>
-            {!sidebarCollapsed && <span style={styles.logoText}>Admin Panel</span>}
+            {!sidebarCollapsed && (
+              <span style={styles.logoText}>Admin Panel</span>
+            )}
           </div>
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -179,7 +279,12 @@ const AdminLayout = () => {
       </aside>
 
       {/* Main Content */}
-      <main style={{ ...styles.main, marginLeft: sidebarCollapsed ? "60px" : "260px" }}>
+      <main
+        style={{
+          ...styles.main,
+          marginLeft: sidebarCollapsed ? "60px" : "260px",
+        }}
+      >
         <header style={styles.header}>
           <div style={styles.headerLeft}>
             <NavLink to="/" style={styles.backLink}>
@@ -396,6 +501,11 @@ const styles = {
     color: "#a78bfa",
     fontSize: "12px",
     fontWeight: "500",
+  },
+  content: {
+    padding: "32px 40px",
+    maxWidth: "calc(100vw - 340px)",
+    minWidth: 0,
   },
   logoutBtn: {
     padding: "6px 14px",

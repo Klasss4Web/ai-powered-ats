@@ -178,66 +178,119 @@ def register_payment_routes(app):
             result = response.json()
             logger.debug(f"Paystack API response: {result}")
 
-            if response.status_code == 200 and result.get('status') and result.get('data', {}).get('status') == 'success':
-                # Get payment metadata
-                metadata = result.get('data', {}).get('metadata', {})
-                payment_type = metadata.get('type', 'pay_as_you_go')
-                plan_type = metadata.get('plan_type')
+            # Handle Paystack-specific errors
+            if not result.get('status'):
+                error_msg = result.get('message', 'Payment verification failed')
+                logger.warning(f"Paystack verification failed for {reference}: {error_msg}")
+                return jsonify({
+                    'error': error_msg,
+                    'details': result.get('meta', {})
+                }), 400
 
-                # Check if payment already processed
-                db = get_db()
-                cursor = db.cursor()
-                cursor.execute('''
-                    SELECT id FROM usage_tracking 
-                    WHERE user_id = %s 
-                    AND action_type = %s 
-                    AND metadata::text LIKE %s
-                ''', (
-                    g.user_id,
-                    'payment',
-                    f'%\"reference\":\"{reference}\"%'
-                ))
-                existing = cursor.fetchone()
-                
-                if not existing:
-                    if payment_type == 'subscription_upgrade':
-                        # Determine target subscription type and expiry duration from metadata.
-                        # target_subscription is 'premium' or 'pro'; falls back to 'premium'.
-                        target_sub = metadata.get('target_subscription', 'premium')
-                        days = SUBSCRIPTION_DURATIONS.get(plan_type, 30)
-                        expires_at = datetime.datetime.utcnow() + datetime.timedelta(days=days)
+            if result.get('data', {}).get('status') != 'success':
+                txn_status = result.get('data', {}).get('status', 'unknown')
+                logger.warning(f"Paystack transaction {reference} status: {txn_status}")
+                return jsonify({
+                    'error': f'Transaction status is "{txn_status}". Payment may not have been completed.',
+                    'details': result.get('data')
+                }), 400
 
-                        cursor.execute('''
-                            UPDATE users
-                            SET subscription_type = %s, subscription_expires_at = %s
-                            WHERE id = %s
-                        ''', (target_sub, expires_at.isoformat(), g.user_id))
+            # Get payment metadata
+            metadata = result.get('data', {}).get('metadata', {})
+            payment_type = metadata.get('type', 'pay_as_you_go')
+            plan_type = metadata.get('plan_type')
 
-                        db.commit()
-                        logger.info(f"User {g.user_id} upgraded to {target_sub} ({plan_type})")
-                    else:
-                        # Record pay-as-you-go payment
-                        amount_naira = result.get('data', {}).get('amount')
-                        cursor.execute('''
-                            INSERT INTO usage_tracking (user_id, action_type, date_created, metadata)
-                            VALUES (%s, %s, %s, %s)
-                        ''', (g.user_id, 'payment', datetime.date.today().isoformat(), json.dumps({
-                            'amount': amount_naira,
-                            'currency': 'NGN',
-                            'type': payment_type,
-                            'reference': reference,
-                            'gateway': 'paystack'
-                        })))
+            # Check subscriptions table directly — the definitive source of truth
+            db = get_db()
+            cursor = db.cursor()
+            cursor.execute('''
+                SELECT id FROM subscriptions WHERE reference = %s
+            ''', (reference,))
+            existing = cursor.fetchone()
+            
+            if existing:
+                logger.info("Payment already processed, skipping duplicate")
+                return jsonify({
+                    'status': 'already_verified',
+                    'message': 'This payment has already been verified. No duplicate credit was applied.',
+                    'data': result.get('data')
+                }), 200
 
-                        db.commit()
-                        logger.info("Payment recorded successfully")
-                else:
-                    logger.info("Payment already processed, skipping duplicate")
-                
-                return jsonify(result), 200
+            # Process the payment
+            if payment_type == 'subscription_upgrade':
+                # Determine target subscription type and expiry duration from metadata.
+                # target_subscription is 'premium' or 'pro'; falls back to 'premium'.
+                target_sub = metadata.get('target_subscription', 'premium')
+                days = SUBSCRIPTION_DURATIONS.get(plan_type, 30)
+                expires_at = datetime.datetime.utcnow() + datetime.timedelta(days=days)
+
+                try:
+                    # Update users table (current-state cache)
+                    cursor.execute('''
+                        UPDATE users
+                        SET subscription_type = %s, subscription_expires_at = %s, subscription_updated_at = CURRENT_TIMESTAMP
+                        WHERE id = %s
+                    ''', (target_sub, expires_at.isoformat(), g.user_id))
+
+                    # Record in subscriptions history table
+                    amount_naira = result.get('data', {}).get('amount')
+                    cursor.execute('''
+                        INSERT INTO subscriptions (user_id, plan_type, amount, currency, gateway, reference, status, started_at, expires_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ''', (g.user_id, target_sub, amount_naira, 'NGN', 'paystack', reference, 'active', datetime.datetime.utcnow(), expires_at))
+
+                    # Record in usage_tracking for analytics
+                    cursor.execute('''
+                        INSERT INTO usage_tracking (user_id, action_type, date_created, metadata)
+                        VALUES (%s, %s, %s, %s)
+                    ''', (g.user_id, 'subscription_upgrade', datetime.date.today().isoformat(), json.dumps({
+                        'type': payment_type,
+                        'reference': reference,
+                        'gateway': 'paystack',
+                        'plan_type': plan_type,
+                        'target_subscription': target_sub
+                    })))
+
+                    db.commit()
+                    logger.info(f"User {g.user_id} upgraded to {target_sub} ({plan_type})")
+                except Exception as e:
+                    db.rollback()
+                    logger.error(f"Paystack subscription upgrade failed: {e}")
+                    return jsonify({'error': 'Failed to process subscription upgrade. Please try again.'}), 500
             else:
-                logger.warning(f"Payment verification failed: {result}")
-                return jsonify({'error': 'Payment verification failed', 'details': result}), 400
+                # Record pay-as-you-go payment
+                try:
+                    amount_naira = result.get('data', {}).get('amount')
+
+                    # Record in subscriptions history table
+                    cursor.execute('''
+                        INSERT INTO subscriptions (user_id, plan_type, amount, currency, gateway, reference, status, started_at, expires_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ''', (g.user_id, 'pay_as_you_go', amount_naira, 'NGN', 'paystack', reference, 'active', datetime.datetime.utcnow(), None))
+
+                    # Record in usage_tracking for duplicate detection
+                    cursor.execute('''
+                        INSERT INTO usage_tracking (user_id, action_type, date_created, metadata)
+                        VALUES (%s, %s, %s, %s)
+                    ''', (g.user_id, 'payment', datetime.date.today().isoformat(), json.dumps({
+                        'amount': amount_naira,
+                        'currency': 'NGN',
+                        'type': payment_type,
+                        'reference': reference,
+                        'gateway': 'paystack'
+                    })))
+
+                    db.commit()
+                    logger.info("Payment recorded successfully")
+                except Exception as e:
+                    db.rollback()
+                    logger.error(f"Paystack pay-as-you-go failed: {e}")
+                    return jsonify({'error': 'Failed to record payment. Please try again.'}), 500
+            
+            return jsonify(result), 200
+            # else:
+            #     logger.warning(f"Payment verification failed: {result}")
+            #     return jsonify({'error': 'Payment verification failed', 'details': result}), 400
 
         except Exception as e:
             logger.error(f"Payment verification error: {e}")
@@ -327,40 +380,84 @@ def register_payment_routes(app):
                             plan_type = None
                             target_sub = 'premium'
 
-                        # Check if payment already processed
+                        # Check subscriptions table directly — the definitive source of truth
                         db = get_db()
                         cursor = db.cursor()
                         cursor.execute('''
-                            SELECT id FROM usage_tracking 
-                            WHERE user_id = %s 
-                            AND action_type = %s 
-                            AND metadata::text LIKE %s
-                        ''', (g.user_id, 'payment', f'%\"reference\":\"{order_id}\"%'))
+                            SELECT id FROM subscriptions WHERE reference = %s
+                        ''', (order_id,))
                         existing = cursor.fetchone()
 
-                        if not existing:
-                            if payment_type == 'subscription_upgrade':
-                                # Set correct subscription type and expiry from config
-                                days = SUBSCRIPTION_DURATIONS.get(plan_type, 30)
-                                expires_at = datetime.datetime.utcnow() + datetime.timedelta(days=days)
+                        if existing:
+                            print("PayPal payment already processed, skipping duplicate")
+                            return jsonify({
+                                'status': 'already_verified',
+                                'message': 'This payment has already been verified. No duplicate credit was applied.',
+                                'data': {
+                                    'status': 'success',
+                                    'amount': amount_usd,
+                                    'currency': 'USD',
+                                    'reference': order_id
+                                }
+                            }), 200
 
+                        if payment_type == 'subscription_upgrade':
+                            # Set correct subscription type and expiry from config
+                            days = SUBSCRIPTION_DURATIONS.get(plan_type, 30)
+                            expires_at = datetime.datetime.utcnow() + datetime.timedelta(days=days)
+
+                            try:
+                                # Update users table (current-state cache)
                                 cursor.execute('''
                                     UPDATE users
-                                    SET subscription_type = %s, subscription_expires_at = %s
+                                    SET subscription_type = %s, subscription_expires_at = %s, subscription_updated_at = CURRENT_TIMESTAMP
                                     WHERE id = %s
                                 ''', (target_sub, expires_at.isoformat(), g.user_id))
 
+                                # Record in subscriptions history table
+                                cursor.execute('''
+                                    INSERT INTO subscriptions (user_id, plan_type, amount, currency, gateway, reference, status, started_at, expires_at)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                ''', (g.user_id, target_sub, amount_usd, 'USD', 'paypal', order_id, 'active', datetime.datetime.utcnow(), expires_at))
+
+                                # Record in usage_tracking for analytics
+                                cursor.execute('''
+                                    INSERT INTO usage_tracking (user_id, action_type, date_created, metadata)
+                                    VALUES (%s, %s, %s, %s)
+                                ''', (
+                                    g.user_id,
+                                    'subscription_upgrade',
+                                    datetime.date.today(),
+                                    json.dumps({
+                                        'type': payment_type,
+                                        'reference': order_id,
+                                        'gateway': 'paypal',
+                                        'plan_type': plan_type,
+                                        'target_subscription': target_sub
+                                    })
+                                ))
+
                                 db.commit()
                                 logger.info(f"User {g.user_id} upgraded to {target_sub} ({plan_type}) via PayPal")
-                            else:
-                                # Record pay-as-you-go payment
+                            except Exception as e:
+                                db.rollback()
+                                logger.error(f"PayPal subscription upgrade failed: {e}")
+                                return jsonify({'error': 'Failed to process subscription upgrade. Please try again.'}), 500
+                        else:
+                            # Record pay-as-you-go payment
+                            try:
+                                cursor.execute('''
+                                    INSERT INTO subscriptions (user_id, plan_type, amount, currency, gateway, reference, status, started_at, expires_at)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                ''', (g.user_id, 'pay_as_you_go', amount_usd, 'USD', 'paypal', order_id, 'active', datetime.datetime.utcnow(), None))
+
                                 cursor.execute('''
                                     INSERT INTO usage_tracking (user_id, action_type, date_created, metadata)
                                     VALUES (%s, %s, %s, %s)
                                 ''', (
                                     g.user_id,
                                     'payment',
-                                    datetime.date.today(),  # no need for .isoformat()
+                                    datetime.date.today(),
                                     json.dumps({
                                         'amount': amount_usd,
                                         'currency': 'USD',
@@ -372,8 +469,10 @@ def register_payment_routes(app):
 
                                 db.commit()
                                 print("PayPal payment recorded successfully")
-                        else:
-                            print("PayPal payment already processed, skipping duplicate")
+                            except Exception as e:
+                                db.rollback()
+                                logger.error(f"PayPal pay-as-you-go failed: {e}")
+                                return jsonify({'error': 'Failed to record payment. Please try again.'}), 500
 
                         return jsonify({
                             'status': True,

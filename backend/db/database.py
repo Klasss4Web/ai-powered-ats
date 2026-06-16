@@ -140,6 +140,67 @@ def init_db(app):
                     CHECK (role IN ('user', 'admin'))
             """)
 
+            # Track when subscription was last changed
+            cur.execute("""
+                ALTER TABLE users 
+                ADD COLUMN IF NOT EXISTS subscription_updated_at TIMESTAMP
+            """)
+
+            # -------------------------
+            # SUBSCRIPTIONS (history of every subscription event)
+            # -------------------------
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS subscriptions (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    plan_type TEXT NOT NULL CHECK (plan_type IN ('free', 'premium', 'pro', 'pay_as_you_go')),
+                    amount NUMERIC,
+                    currency TEXT,
+                    gateway TEXT,
+                    reference TEXT UNIQUE,
+                    status TEXT DEFAULT 'active' CHECK (status IN ('active', 'expired', 'cancelled')),
+                    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    expires_at TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id)
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_subscriptions_status ON subscriptions(status)
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_subscriptions_created_at ON subscriptions(created_at)
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_subscriptions_reference ON subscriptions(reference)
+            """)
+
+            # Expand plan_type CHECK constraint if table already exists
+            cur.execute("""
+                DO $$
+                DECLARE
+                    c_name TEXT;
+                BEGIN
+                    SELECT conname INTO c_name
+                    FROM pg_constraint
+                    WHERE conrelid = 'subscriptions'::regclass
+                      AND contype = 'c'
+                      AND pg_get_constraintdef(oid) LIKE '%plan_type%';
+
+                    IF c_name IS NOT NULL THEN
+                        EXECUTE 'ALTER TABLE subscriptions DROP CONSTRAINT ' || quote_ident(c_name);
+                    END IF;
+
+                    ALTER TABLE subscriptions
+                        ADD CONSTRAINT subscriptions_plan_type_check
+                        CHECK (plan_type IN ('free', 'premium', 'pro', 'pay_as_you_go'));
+                END
+                $$;
+            """)
+
             # -------------------------
             # API METRICS TRACKING (for observability)
             # -------------------------

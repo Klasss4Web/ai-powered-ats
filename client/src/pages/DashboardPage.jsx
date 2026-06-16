@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import AlertModal from "../components/AlertModal";
+import ConfirmModal from "../components/ConfirmModal";
 import LoginModal from "../components/auth/LoginModal";
 import UsageStatus from "../components/UsageStatus";
 import { AUTH_CONSTANTS } from "../constants/auth_constants";
@@ -13,6 +14,7 @@ const DashboardPage = () => {
   const [usageInfo, setUsageInfo] = useState(null);
   const [savedResumes, setSavedResumes] = useState([]);
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [alertModal, setAlertModal] = useState({
     isOpen: false,
     message: "",
@@ -78,9 +80,14 @@ const DashboardPage = () => {
   };
 
   const handleLogout = () => {
+    setShowLogoutConfirm(true);
+  };
+
+  const confirmLogout = () => {
     logout();
     setUsageInfo(null);
     setSavedResumes([]);
+    setShowLogoutConfirm(false);
   };
 
   return (
@@ -239,6 +246,17 @@ const DashboardPage = () => {
         isOpen={showLoginModal}
         onClose={() => setShowLoginModal(false)}
         onLogin={handleLoginSuccess}
+      />
+
+      <ConfirmModal
+        isOpen={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={confirmLogout}
+        title="Logout?"
+        message="Are you sure you want to log out?"
+        confirmText="Logout"
+        confirmColor="#ef4444"
+        cancelText="Cancel"
       />
     </div>
   );

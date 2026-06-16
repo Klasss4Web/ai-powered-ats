@@ -78,7 +78,9 @@ const UsersManagement = () => {
       // Refresh user list
       fetchUsers();
     } catch (err) {
-      alert(err.message);
+      if (window.showToast) {
+        window.showToast(err.message, "error");
+      }
     }
   };
 
@@ -200,7 +202,7 @@ const UsersManagement = () => {
               <th style={styles.th}>User</th>
               <th style={styles.th}>Role</th>
               <th style={styles.th}>Subscription</th>
-              <th style={styles.th}>Usage</th>
+              <th style={styles.th}>Remaining</th>
               <th style={styles.th}>Joined</th>
               <th style={styles.th}>Actions</th>
             </tr>
@@ -233,12 +235,14 @@ const UsersManagement = () => {
                 <td style={styles.td}>
                   <span style={{
                     ...styles.subscriptionBadge,
-                    backgroundColor: user.subscription_type === "premium" 
-                      ? "rgba(251, 191, 36, 0.2)" 
-                      : "rgba(148, 163, 184, 0.2)",
-                    color: user.subscription_type === "premium" ? "#fbbf24" : "#94a3b8",
+                    backgroundColor: user.effective_subscription === "premium"
+                      ? "rgba(251, 191, 36, 0.2)"
+                      : user.effective_subscription === "pro"
+                        ? "rgba(139, 92, 246, 0.2)"
+                        : "rgba(148, 163, 184, 0.2)",
+                    color: user.effective_subscription === "premium" ? "#fbbf24" : user.effective_subscription === "pro" ? "#a78bfa" : "#94a3b8",
                   }}>
-                    {user.subscription_type}
+                    {user.effective_subscription}
                     {user.subscription_expires_at && (
                       <span style={styles.expiryDate}>
                         (expires {new Date(user.subscription_expires_at).toLocaleDateString()})
@@ -247,7 +251,13 @@ const UsersManagement = () => {
                   </span>
                 </td>
                 <td style={styles.td}>
-                  <span style={styles.usageCount}>{user.usage_count} actions</span>
+                  <span style={{
+                    ...styles.remainingBadge,
+                    backgroundColor: user.remaining_analyses > 0 ? "rgba(52, 211, 153, 0.2)" : "rgba(239, 68, 68, 0.2)",
+                    color: user.remaining_analyses > 0 ? "#34d399" : "#ef4444",
+                  }}>
+                    {user.remaining_analyses} left
+                  </span>
                 </td>
                 <td style={styles.td}>
                   {user.created_at 
@@ -562,6 +572,12 @@ const styles = {
   usageCount: {
     color: "#94a3b8",
     fontSize: "13px",
+  },
+  remainingBadge: {
+    padding: "4px 10px",
+    borderRadius: "20px",
+    fontSize: "12px",
+    fontWeight: "600",
   },
   roleSelect: {
     padding: "6px 12px",

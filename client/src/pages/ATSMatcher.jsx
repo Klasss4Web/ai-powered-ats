@@ -37,6 +37,7 @@ const ATSMatcher = () => {
     companyName: "",
     jobTitle: "",
     jobDescription: "",
+    resumeText: "",
   });
 
   // Interview prep state
@@ -46,6 +47,8 @@ const ATSMatcher = () => {
   const [interviewPrepForm, setInterviewPrepForm] = useState({
     companyName: "",
     jobTitle: "",
+    jobDescription: "",
+    resumeText: "",
   });
   const [activeInterviewTab, setActiveInterviewTab] = useState("questions");
 
@@ -90,12 +93,7 @@ const ATSMatcher = () => {
       const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
       if (token) {
         try {
-          const response = await fetch(`${BASE_URL}/auth/verify`, {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
+          const response = await fetchWithTimeout('/auth/verify');
 
           if (response.ok) {
             const data = await response.json();
@@ -208,12 +206,7 @@ const ATSMatcher = () => {
 
     setLoadingUsage(true);
     try {
-      const response = await fetch(`${BASE_URL}/user/usage`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await fetchWithTimeout('/user/usage');
 
       if (response.ok) {
         const data = await response.json();
@@ -232,11 +225,7 @@ const ATSMatcher = () => {
     if (!token) return;
 
     try {
-      const response = await fetch(`${BASE_URL}/resumes`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await fetchWithTimeout('/resumes');
 
       if (response.ok) {
         const data = await response.json();
@@ -260,11 +249,8 @@ const ATSMatcher = () => {
     formData.append("resume", resumeFile);
 
     try {
-      const response = await fetch(`${BASE_URL}/resumes/save`, {
+      const response = await fetchWithTimeout('/resumes/save', {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
         body: formData,
       });
 
@@ -288,11 +274,8 @@ const ATSMatcher = () => {
     const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
 
     try {
-      const response = await fetch(`${BASE_URL}/resumes/${resumeId}`, {
+      const response = await fetchWithTimeout(`/resumes/${resumeId}`, {
         method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
       });
 
       if (response.ok) {
@@ -352,11 +335,8 @@ const ATSMatcher = () => {
     try {
       const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
       if (token) {
-        await fetch(`${BASE_URL}/auth/logout`, {
+        await fetchWithTimeout('/auth/logout', {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
         });
       }
     } catch (error) {
@@ -486,12 +466,8 @@ const ATSMatcher = () => {
     setDownloadingOptimized(true);
     try {
       const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
-      const response = await fetch(`${BASE_URL}/generate-optimized-resume`, {
+      const response = await fetchWithTimeout('/generate-optimized-resume', {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify({
           original_resume_text: originalResumeText,
           job_description: analysisJobDescription,
@@ -560,12 +536,8 @@ const ATSMatcher = () => {
     setDownloadingStandard(true);
     try {
       const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
-      const response = await fetch(`${BASE_URL}/generate-standard-resume`, {
+      const response = await fetchWithTimeout('/generate-standard-resume', {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify({
           resume_text: originalResumeText,
         }),
@@ -594,17 +566,8 @@ const ATSMatcher = () => {
 
   // Function to generate cover letter
   const handleGenerateCoverLetter = async () => {
-    // Get resume text - either from analysis or we need it from the form
-    let resumeText = originalResumeText;
-
-    // If no resume text from analysis, show error
-    if (!resumeText) {
-      showAlert(
-        "Please run the analysis first to generate a cover letter.",
-        "warning",
-      );
-      return;
-    }
+    // Get resume text - from analysis, or from the form if no analysis was run
+    const resumeText = originalResumeText || coverLetterForm.resumeText.trim();
 
     if (
       !coverLetterForm.companyName.trim() ||
@@ -615,27 +578,16 @@ const ATSMatcher = () => {
     }
 
     // Determine which job description to use
-    // In auto mode (from results), use the saved analysis job description
-    // In manual mode, use the form's job description
     const jobDescToUse =
       coverLetterMode === "manual"
         ? coverLetterForm.jobDescription
         : analysisJobDescription || coverLetterForm.jobDescription || "";
 
-    if (!jobDescToUse.trim()) {
-      showAlert("Please enter a job description.", "warning");
-      return;
-    }
-
     setGeneratingCoverLetter(true);
     try {
       const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
-      const response = await fetch(`${BASE_URL}/generate-cover-letter`, {
+      const response = await fetchWithTimeout('/generate-cover-letter', {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify({
           resume_text: resumeText,
           job_description: jobDescToUse,
@@ -685,10 +637,8 @@ const ATSMatcher = () => {
 
   // Function to generate interview preparation
   const handleGenerateInterviewPrep = async () => {
-    if (!results || !originalResumeText) {
-      showAlert("Please run the analysis first.", "warning");
-      return;
-    }
+    const resumeText = originalResumeText || interviewPrepForm.resumeText.trim();
+    const jobDescToUse = analysisJobDescription || interviewPrepForm.jobDescription || "";
 
     if (
       !interviewPrepForm.companyName.trim() ||
@@ -701,18 +651,14 @@ const ATSMatcher = () => {
     setGeneratingInterviewPrep(true);
     try {
       const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
-      const response = await fetch(`${BASE_URL}/interview-prep`, {
+      const response = await fetchWithTimeout('/interview-prep', {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify({
-          resume_text: originalResumeText,
-          job_description: analysisJobDescription || "",
+          resume_text: resumeText || "",
+          job_description: jobDescToUse,
           company_name: interviewPrepForm.companyName,
           job_title: interviewPrepForm.jobTitle,
-          analysis_results: results,
+          analysis_results: results || null,
         }),
       });
 
@@ -750,7 +696,7 @@ const ATSMatcher = () => {
       const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
 
       // Step 1: Get Paystack public key
-      const configResponse = await fetch(`${BASE_URL}/payment/config`);
+      const configResponse = await fetchWithTimeout('/payment/config');
       if (!configResponse.ok) {
         showAlert("Failed to load payment configuration", "error");
         return;
@@ -758,15 +704,11 @@ const ATSMatcher = () => {
       const configData = await configResponse.json();
 
       // Step 2: Initialize payment with backend
-      const initResponse = await fetch(`${BASE_URL}/payment/initialize`, {
+      const initResponse = await fetchWithTimeout('/payment/initialize', {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify({
           email: user.email,
-          amount: gateway === "paypal" ? 100 : 1000000, // $1.00 for PayPal, ₦1000 for Paystack
+          amount: gateway === "paypal" ? 200 : 200000, // $2.00 for PayPal, ₦2,000 for Paystack
           gateway: gateway,
         }),
       });
@@ -801,13 +743,8 @@ const ATSMatcher = () => {
     try {
       showAlert("Verifying PayPal payment...", "info");
       console.log("Making API call to verify PayPal payment");
-      const response = await fetch(
-        `${BASE_URL}/payment/verify-paypal/${orderId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
+      const response = await fetchWithTimeout(
+        `/payment/verify-paypal/${orderId}`,
       );
       console.log("PayPal verification response status:", response.status);
 
@@ -851,14 +788,10 @@ const ATSMatcher = () => {
 
     try {
       showAlert("Verifying payment...", "info");
-      const response = await fetch(
-        `${BASE_URL}/payment/manual-verify/${reference}`,
+      const response = await fetchWithTimeout(
+        `/payment/manual-verify/${reference}`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
           body: JSON.stringify({ gateway }),
         },
       );
@@ -894,14 +827,8 @@ const ATSMatcher = () => {
     try {
       showAlert("Verifying payment...", "info");
       console.log("Making API call to verify Paystack payment");
-      const verifyResponse = await fetch(
-        `${BASE_URL}/payment/verify/${reference}`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
+      const verifyResponse = await fetchWithTimeout(
+        `/payment/verify/${reference}`,
       );
       console.log(
         "Paystack verification response status:",
@@ -957,20 +884,11 @@ const ATSMatcher = () => {
 
         let response;
         if (gateway === "paypal") {
-          response = await fetch(
-            `${BASE_URL}/payment/verify-paypal/${reference}`,
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            },
+          response = await fetchWithTimeout(
+            `/payment/verify-paypal/${reference}`,
           );
         } else {
-          response = await fetch(`${BASE_URL}/payment/verify/${reference}`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
+          response = await fetchWithTimeout(`/payment/verify/${reference}`);
         }
         const data = await response.json();
         console.log("Payment verification response:", data);
@@ -1852,6 +1770,97 @@ const ATSMatcher = () => {
         </div>
       )}
 
+      {/* Standalone AI Tools - available even without analysis */}
+      {isAuthenticated && (
+        <div style={styles.standaloneTools}>
+          <h2 style={styles.standaloneToolsTitle}>AI-Powered Tools</h2>
+          <p style={styles.standaloneToolsSubtitle}>
+            Generate cover letters and interview prep without running a full resume analysis.
+          </p>
+          <div style={styles.standaloneToolsGrid}>
+            {/* Cover Letter Standalone Card */}
+            <div
+              style={styles.standaloneCard}
+              onClick={() => {
+                setCoverLetterMode("manual");
+                setCoverLetterForm({
+                  companyName: "",
+                  jobTitle: "",
+                  jobDescription: "",
+                  resumeText: "",
+                });
+                setShowCoverLetterModal(true);
+              }}
+            >
+              <div style={styles.standaloneCardIcon}>✉️</div>
+              <h3 style={styles.standaloneCardTitle}>Cover Letter</h3>
+              <p style={styles.standaloneCardDesc}>
+                Generate a personalized cover letter for any job.
+              </p>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCoverLetterMode("manual");
+                  setCoverLetterForm({
+                    companyName: "",
+                    jobTitle: "",
+                    jobDescription: "",
+                    resumeText: "",
+                  });
+                  setShowCoverLetterModal(true);
+                }}
+                style={{
+                  ...styles.standaloneCardBtn,
+                  backgroundColor: "#9c27b0",
+                }}
+              >
+                Generate
+              </button>
+            </div>
+
+            {/* Interview Prep Standalone Card */}
+            <div
+              style={styles.standaloneCard}
+              onClick={() => {
+                setInterviewPrep(null);
+                setInterviewPrepForm({
+                  companyName: "",
+                  jobTitle: "",
+                  jobDescription: "",
+                  resumeText: "",
+                });
+                setShowInterviewPrepModal(true);
+              }}
+            >
+              <div style={styles.standaloneCardIcon}>🎯</div>
+              <h3 style={styles.standaloneCardTitle}>Interview Prep</h3>
+              <p style={styles.standaloneCardDesc}>
+                Get likely questions, suggested answers, and tips.
+              </p>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setInterviewPrep(null);
+                  setInterviewPrepForm({
+                    companyName: "",
+                    jobTitle: "",
+                    jobDescription: "",
+                    resumeText: "",
+                  });
+                  setShowInterviewPrepModal(true);
+                }}
+                style={{
+                  ...styles.standaloneCardBtn,
+                  backgroundColor: "#00796b",
+                }}
+              >
+                Prepare Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Cover Letter Modal */}
       {showCoverLetterModal && (
         <div style={styles.modalOverlay}>
@@ -1866,6 +1875,7 @@ const ATSMatcher = () => {
                     companyName: "",
                     jobTitle: "",
                     jobDescription: "",
+                    resumeText: "",
                   });
                   setCoverLetterMode("auto");
                 }}
@@ -1916,19 +1926,59 @@ const ATSMatcher = () => {
                     />
                   </div>
 
-                  {/* Show indicator that we're using data from analysis */}
-                  <div
-                    style={{
-                      backgroundColor: "#e8f5e9",
-                      padding: "12px 15px",
-                      borderRadius: "8px",
-                      marginBottom: "20px",
-                      color: "#2e7d32",
-                      fontSize: "0.9em",
-                    }}
-                  >
-                    ✓ Using your resume and job description from the analysis
-                  </div>
+                  {/* Show resume text input if analysis data is not available */}
+                  {!originalResumeText && (
+                    <div style={{ marginBottom: "20px" }}>
+                      <label style={styles.inputLabel}>Your Resume Text</label>
+                      <textarea
+                        value={coverLetterForm.resumeText}
+                        onChange={(e) =>
+                          setCoverLetterForm({
+                            ...coverLetterForm,
+                            resumeText: e.target.value,
+                          })
+                        }
+                        placeholder="Paste your resume text here so we can personalize the cover letter..."
+                        rows="6"
+                        style={{ ...styles.textInput, fontFamily: "inherit", resize: "vertical" }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Show job description input if analysis data is not available */}
+                  {!analysisJobDescription && (
+                    <div style={{ marginBottom: "20px" }}>
+                      <label style={styles.inputLabel}>Job Description</label>
+                      <textarea
+                        value={coverLetterForm.jobDescription}
+                        onChange={(e) =>
+                          setCoverLetterForm({
+                            ...coverLetterForm,
+                            jobDescription: e.target.value,
+                          })
+                        }
+                        placeholder="Paste the job description here..."
+                        rows="4"
+                        style={{ ...styles.textInput, fontFamily: "inherit", resize: "vertical" }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Show indicator when using data from analysis */}
+                  {originalResumeText && analysisJobDescription && (
+                    <div
+                      style={{
+                        backgroundColor: "#e8f5e9",
+                        padding: "12px 15px",
+                        borderRadius: "8px",
+                        marginBottom: "20px",
+                        color: "#2e7d32",
+                        fontSize: "0.9em",
+                      }}
+                    >
+                      ✓ Using your resume and job description from the analysis
+                    </div>
+                  )}
 
                   <button
                     onClick={handleGenerateCoverLetter}
@@ -2078,7 +2128,7 @@ const ATSMatcher = () => {
                 onClick={() => {
                   setShowInterviewPrepModal(false);
                   setInterviewPrep(null);
-                  setInterviewPrepForm({ companyName: "", jobTitle: "" });
+                  setInterviewPrepForm({ companyName: "", jobTitle: "", jobDescription: "", resumeText: "" });
                 }}
                 style={styles.closeButton}
               >
@@ -2126,6 +2176,64 @@ const ATSMatcher = () => {
                       style={styles.textInput}
                     />
                   </div>
+
+                  {/* Optional resume text input */}
+                  {!originalResumeText && (
+                    <div style={{ marginBottom: "20px" }}>
+                      <label style={styles.inputLabel}>
+                        Your Resume Text <span style={{ color: "#94a3b8", fontWeight: "normal" }}>(optional)</span>
+                      </label>
+                      <textarea
+                        value={interviewPrepForm.resumeText}
+                        onChange={(e) =>
+                          setInterviewPrepForm({
+                            ...interviewPrepForm,
+                            resumeText: e.target.value,
+                          })
+                        }
+                        placeholder="Paste your resume text for personalized interview prep..."
+                        rows="4"
+                        style={{ ...styles.textInput, fontFamily: "inherit", resize: "vertical" }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Optional job description input */}
+                  {!analysisJobDescription && (
+                    <div style={{ marginBottom: "20px" }}>
+                      <label style={styles.inputLabel}>
+                        Job Description <span style={{ color: "#94a3b8", fontWeight: "normal" }}>(optional)</span>
+                      </label>
+                      <textarea
+                        value={interviewPrepForm.jobDescription}
+                        onChange={(e) =>
+                          setInterviewPrepForm({
+                            ...interviewPrepForm,
+                            jobDescription: e.target.value,
+                          })
+                        }
+                        placeholder="Paste the job description for more tailored questions..."
+                        rows="4"
+                        style={{ ...styles.textInput, fontFamily: "inherit", resize: "vertical" }}
+                      />
+                    </div>
+                  )}
+
+                  {/* Indicator when using analysis data */}
+                  {originalResumeText && (
+                    <div
+                      style={{
+                        backgroundColor: "#e8f5e9",
+                        padding: "12px 15px",
+                        borderRadius: "8px",
+                        marginBottom: "20px",
+                        color: "#2e7d32",
+                        fontSize: "0.9em",
+                      }}
+                    >
+                      ✓ Using your resume and job description from the analysis
+                    </div>
+                  )}
 
                   <button
                     onClick={handleGenerateInterviewPrep}
@@ -2439,6 +2547,61 @@ const styles = {
     borderRadius: "10px",
     boxShadow: "0 6px 12px rgba(0,0,0,0.15)",
     textAlign: "left",
+  },
+  standaloneTools: {
+    marginTop: "40px",
+    padding: "30px",
+    backgroundColor: "#fff",
+    borderRadius: "12px",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+  },
+  standaloneToolsTitle: {
+    fontSize: "1.4em",
+    color: "#1a73e8",
+    margin: "0 0 8px 0",
+  },
+  standaloneToolsSubtitle: {
+    color: "#666",
+    fontSize: "0.95em",
+    marginBottom: "24px",
+  },
+  standaloneToolsGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gap: "20px",
+  },
+  standaloneCard: {
+    border: "1px solid #e0e0e0",
+    borderRadius: "10px",
+    padding: "24px",
+    textAlign: "center",
+    cursor: "pointer",
+    transition: "transform 0.2s, box-shadow 0.2s",
+    backgroundColor: "#fafafa",
+  },
+  standaloneCardIcon: {
+    fontSize: "2em",
+    marginBottom: "12px",
+  },
+  standaloneCardTitle: {
+    fontSize: "1.1em",
+    color: "#333",
+    margin: "0 0 8px 0",
+  },
+  standaloneCardDesc: {
+    fontSize: "0.9em",
+    color: "#666",
+    marginBottom: "16px",
+    lineHeight: "1.4",
+  },
+  standaloneCardBtn: {
+    color: "white",
+    border: "none",
+    borderRadius: "6px",
+    padding: "10px 20px",
+    fontSize: "0.95em",
+    cursor: "pointer",
+    width: "100%",
   },
   headerContainer: {
     display: "flex",

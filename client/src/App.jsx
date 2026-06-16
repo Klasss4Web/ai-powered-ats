@@ -12,6 +12,7 @@ import SubscriptionPage from "./pages/SubscriptionPage";
 import VerifyPaymentPage from "./pages/VerifyPaymentPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import MyAnalysisPage from "./pages/MyAnalysisPage";
+import NotFoundPage from "./pages/NotFoundPage";
 import ToastContainer from "./components/ToastContainer";
 
 // Admin pages
@@ -22,8 +23,10 @@ import {
   TokenUsage,
   PerformanceAnalytics,
   UsersManagement,
+  Subscriptions,
   ActivityLog,
   ErrorLog,
+  FeatureFlags,
 } from "./pages/admin";
 
 function App() {
@@ -40,6 +43,8 @@ function App() {
                 <Route path="tokens" element={<TokenUsage />} />
                 <Route path="performance" element={<PerformanceAnalytics />} />
                 <Route path="users" element={<UsersManagement />} />
+                <Route path="subscriptions" element={<Subscriptions />} />
+                <Route path="feature-flags" element={<FeatureFlags />} />
                 <Route path="activity" element={<ActivityLog />} />
                 <Route path="errors" element={<ErrorLog />} />
               </Route>
@@ -59,8 +64,9 @@ function App() {
                       <Route path="/my-analysis" element={<MyAnalysisPage />} />
                       <Route path="/subscribe" element={<SubscriptionPage />} />
                       <Route path="/verify-payment" element={<VerifyPaymentPage />} />
-                      <Route path="/reset-password" element={<ResetPasswordPage />} />
-                    </Routes>
+                       <Route path="/reset-password" element={<ResetPasswordPage />} />
+                       <Route path="*" element={<NotFoundPage />} />
+                     </Routes>
                   </>
                 }
               />

@@ -44,6 +44,7 @@ const RecruitersView = () => {
 
   // Authentication state
   const [showLoginModal, setShowLoginModal] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   // Usage and subscription state
   const [usageInfo, setUsageInfo] = useState(null);
@@ -795,8 +796,13 @@ const RecruitersView = () => {
   };
 
   const handleLogout = () => {
+    setShowLogoutConfirm(true);
+  };
+
+  const confirmLogout = () => {
     logout();
     setShowLoginModal(true);
+    setShowLogoutConfirm(false);
   };
 
   const closeAlertModal = () => {
@@ -2316,6 +2322,18 @@ const RecruitersView = () => {
             <AnimatedLoader text="Analyzing" />
           </div>
         </div>
+      )}
+      {showLogoutConfirm && (
+        <ConfirmModal
+          isOpen={showLogoutConfirm}
+          onClose={() => setShowLogoutConfirm(false)}
+          onConfirm={confirmLogout}
+          title="Logout?"
+          message="Are you sure you want to log out?"
+          confirmText="Logout"
+          confirmColor="#ef4444"
+          cancelText="Cancel"
+        />
       )}
     </div>
   );

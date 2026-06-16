@@ -8,6 +8,9 @@ from flask import jsonify, request, g
 from db.database import get_db
 from auth.auth import admin_required
 from logger.app_logger import logger
+from config import USAGE_LIMITS, PREMIUM_TIERS
+
+AI_FEATURES = ["analysis", "cover_letter", "interview_prep", "batch_analysis"]
 
 
 # Helper function to format endpoint names for display
@@ -491,43 +494,62 @@ def register_admin_routes(app):
             )
             total = cursor.fetchone()["count"]
 
-            # HIGH-5: Replace N+1 per-user usage count queries with a single LEFT JOIN aggregation.
+            today = datetime.utcnow().date()
+
             cursor.execute(
                 f"""
                 SELECT 
                     u.id, u.email, u.name, u.role, u.subscription_type, 
-                    u.subscription_expires_at, u.created_at,
-                    COUNT(ut.id) AS usage_count
+                    u.subscription_expires_at, u.subscription_updated_at, u.created_at,
+                    COALESCE(ai.today_usage, 0) AS today_ai_usage,
+                    COALESCE(p.today_payments, 0) AS today_payments
                 FROM users u
-                LEFT JOIN usage_tracking ut ON ut.user_id = u.id
+                LEFT JOIN (
+                    SELECT user_id, COUNT(*) AS today_usage
+                    FROM usage_tracking
+                    WHERE action_type = ANY(%s) AND date_created = %s
+                    GROUP BY user_id
+                ) ai ON ai.user_id = u.id
+                LEFT JOIN (
+                    SELECT user_id, COUNT(*) AS today_payments
+                    FROM usage_tracking
+                    WHERE action_type = 'payment' AND date_created = %s
+                    GROUP BY user_id
+                ) p ON p.user_id = u.id
                 WHERE {where_sql}
-                GROUP BY u.id, u.email, u.name, u.role, u.subscription_type,
-                         u.subscription_expires_at, u.created_at
                 ORDER BY u.created_at DESC
                 LIMIT %s OFFSET %s
             """,
-                params + [per_page, offset],
+                (AI_FEATURES, today, today) + tuple(params) + (per_page, offset),
             )
 
-            users = [
-                {
+            users = []
+            for row in cursor.fetchall():
+                sub_type = row["subscription_type"]
+                expires = row["subscription_expires_at"]
+                if sub_type in PREMIUM_TIERS and expires:
+                    if datetime.utcnow() > expires:
+                        sub_type = "free"
+
+                base_limit = USAGE_LIMITS.get(sub_type, 1)
+                remaining = max(0, base_limit + row["today_payments"] - row["today_ai_usage"])
+
+                users.append({
                     "id": row["id"],
                     "email": row["email"],
                     "name": row["name"],
                     "role": row["role"] or "user",
                     "subscription_type": row["subscription_type"],
-                    "subscription_expires_at": row[
-                        "subscription_expires_at"
-                    ].isoformat()
-                    if row["subscription_expires_at"]
+                    "effective_subscription": sub_type,
+                    "subscription_expires_at": expires.isoformat() if expires else None,
+                    "subscription_updated_at": row["subscription_updated_at"].isoformat()
+                    if row["subscription_updated_at"]
                     else None,
-                    "created_at": row["created_at"].isoformat()
-                    if row["created_at"]
-                    else None,
-                    "usage_count": row["usage_count"],
-                }
-                for row in cursor.fetchall()
-            ]
+                    "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                    "today_ai_usage": row["today_ai_usage"],
+                    "today_payments": row["today_payments"],
+                    "remaining_analyses": remaining,
+                })
 
             return jsonify(
                 {
@@ -585,6 +607,107 @@ def register_admin_routes(app):
         except Exception as e:
             logger.error(f"Update user role error: {e}")
             return jsonify({"error": "Failed to update user role"}), 500
+
+    # ---------------------------
+    # SUBSCRIPTIONS HISTORY
+    # ---------------------------
+    @app.route("/api/admin/subscriptions", methods=["GET"])
+    @admin_required
+    def admin_subscriptions():
+        """Get paginated subscription history from the subscriptions table."""
+        try:
+            db = get_db()
+            cursor = db.cursor()
+
+            page = request.args.get("page", 1, type=int)
+            per_page = request.args.get("per_page", 20, type=int)
+            search = request.args.get("search", "")
+            plan_filter = request.args.get("plan", "")
+            status_filter = request.args.get("status", "")
+
+            if per_page > 100:
+                per_page = 100
+            offset = (page - 1) * per_page
+
+            where_clauses = []
+            params = []
+
+            if search:
+                where_clauses.append("(u.email ILIKE %s OR u.name ILIKE %s)")
+                params.extend([f"%{search}%", f"%{search}%"])
+
+            if plan_filter:
+                where_clauses.append("s.plan_type = %s")
+                params.append(plan_filter)
+
+            if status_filter:
+                where_clauses.append("s.status = %s")
+                params.append(status_filter)
+
+            where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
+
+            # Count total
+            cursor.execute(
+                f"""
+                SELECT COUNT(*) AS total
+                FROM subscriptions s
+                JOIN users u ON u.id = s.user_id
+                WHERE {where_sql}
+                """,
+                tuple(params),
+            )
+            total = cursor.fetchone()["total"]
+
+            # Fetch rows
+            cursor.execute(
+                f"""
+                SELECT
+                    s.id, s.plan_type, s.amount, s.currency, s.gateway,
+                    s.reference, s.status, s.started_at, s.expires_at, s.created_at,
+                    u.id AS user_id, u.email, u.name
+                FROM subscriptions s
+                JOIN users u ON u.id = s.user_id
+                WHERE {where_sql}
+                ORDER BY s.created_at DESC
+                LIMIT %s OFFSET %s
+                """,
+                tuple(params) + (per_page, offset),
+            )
+
+            subscriptions = [
+                {
+                    "id": row["id"],
+                    "plan_type": row["plan_type"],
+                    "amount": str(row["amount"]) if row["amount"] else None,
+                    "currency": row["currency"],
+                    "gateway": row["gateway"],
+                    "reference": row["reference"],
+                    "status": row["status"],
+                    "started_at": row["started_at"].isoformat() if row["started_at"] else None,
+                    "expires_at": row["expires_at"].isoformat() if row["expires_at"] else None,
+                    "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                    "user": {
+                        "id": row["user_id"],
+                        "email": row["email"],
+                        "name": row["name"],
+                    },
+                }
+                for row in cursor.fetchall()
+            ]
+
+            return jsonify({
+                "subscriptions": subscriptions,
+                "pagination": {
+                    "page": page,
+                    "per_page": per_page,
+                    "total": total,
+                    "pages": (total + per_page - 1) // per_page,
+                },
+            })
+
+        except Exception as e:
+            logger.error(f"Subscriptions fetch error: {e}")
+            return jsonify({"error": "Failed to fetch subscriptions"}), 500
 
     # ---------------------------
     # API PERFORMANCE METRICS
@@ -700,14 +823,29 @@ def register_admin_routes(app):
     @app.route("/api/admin/activity", methods=["GET"])
     @admin_required
     def admin_activity_log():
-        """Get recent activity log."""
+        """Get paginated activity log."""
         try:
             db = get_db()
             cursor = db.cursor()
 
             limit = request.args.get("limit", 50, type=int)
+            page = request.args.get("page", 1, type=int)
+            per_page = request.args.get("per_page", 50, type=int)
+
             if limit > 200:
                 limit = 200
+            if per_page > 200:
+                per_page = 200
+            offset = (page - 1) * per_page
+
+            cursor.execute(
+                """
+                SELECT COUNT(*) AS total
+                FROM usage_tracking ut
+                JOIN users u ON ut.user_id = u.id
+            """
+            )
+            total = cursor.fetchone()["total"]
 
             cursor.execute(
                 """
@@ -721,9 +859,9 @@ def register_admin_routes(app):
                 FROM usage_tracking ut
                 JOIN users u ON ut.user_id = u.id
                 ORDER BY ut.created_at DESC
-                LIMIT %s
+                LIMIT %s OFFSET %s
             """,
-                (limit,),
+                (per_page, offset),
             )
 
             activities = [
@@ -740,7 +878,15 @@ def register_admin_routes(app):
                 for row in cursor.fetchall()
             ]
 
-            return jsonify({"activities": activities})
+            return jsonify({
+                "activities": activities,
+                "pagination": {
+                    "page": page,
+                    "per_page": per_page,
+                    "total": total,
+                    "pages": (total + per_page - 1) // per_page,
+                },
+            })
 
         except Exception as e:
             logger.error(f"Activity log error: {e}")
