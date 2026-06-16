@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
+import ConfirmModal from "../../components/ConfirmModal";
 
 const AdminLayout = () => {
   const navigate = useNavigate();
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, logout, isLoading: authLoading } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   /* ── redirect non-admins ── */
   useEffect(() => {
@@ -13,6 +15,16 @@ const AdminLayout = () => {
       navigate("/");
     }
   }, [authLoading, user, navigate]);
+
+  const handleLogout = () => {
+    setShowLogoutConfirm(true);
+  };
+
+  const confirmLogout = () => {
+    logout();
+    setShowLogoutConfirm(false);
+    navigate("/");
+  };
 
   if (authLoading) {
     return (
@@ -176,12 +188,25 @@ const AdminLayout = () => {
           </div>
           <div style={styles.headerRight}>
             <span style={styles.adminBadge}>Admin</span>
+            <button onClick={handleLogout} style={styles.logoutBtn}>
+              Logout
+            </button>
           </div>
         </header>
         <div style={styles.content}>
           <Outlet />
         </div>
       </main>
+      <ConfirmModal
+        isOpen={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={confirmLogout}
+        title="Logout?"
+        message="You are about to log out of the admin panel."
+        confirmText="Logout"
+        confirmColor="#ef4444"
+        cancelText="Cancel"
+      />
     </div>
   );
 };
@@ -372,8 +397,16 @@ const styles = {
     fontSize: "12px",
     fontWeight: "500",
   },
-  content: {
-    padding: "24px",
+  logoutBtn: {
+    padding: "6px 14px",
+    borderRadius: "6px",
+    border: "1px solid rgba(239, 68, 68, 0.3)",
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+    color: "#fca5a5",
+    fontSize: "13px",
+    fontWeight: "500",
+    cursor: "pointer",
+    transition: "all 0.2s ease",
   },
 };
 

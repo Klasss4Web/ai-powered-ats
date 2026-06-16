@@ -23,10 +23,15 @@ const fetchWithTimeout = async (
   const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
 
   const headers = {
-    "Content-Type": "application/json",
     ...(options.headers || {}),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
   };
+
+  // Only default to JSON content-type when the caller didn't supply one
+  // and the body isn't FormData (browser needs to set the multipart boundary).
+  if (!headers["Content-Type"] && !(options.body instanceof FormData)) {
+    headers["Content-Type"] = "application/json";
+  }
 
   const isFullUrl = url.startsWith("http");
   const finalUrl = isFullUrl ? url : `${BASE_URL}${url}`;

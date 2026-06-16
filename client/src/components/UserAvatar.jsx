@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from "react";
+import ConfirmModal from "./ConfirmModal";
 
 const UserAvatar = ({ user, onLogout }) => {
   const [showDropdown, setShowDropdown] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const dropdownRef = useRef(null);
 
   // Close dropdown when clicking outside
@@ -69,8 +71,8 @@ const UserAvatar = ({ user, onLogout }) => {
           </div>
           <button
             onClick={() => {
-              onLogout();
               setShowDropdown(false);
+              setShowLogoutConfirm(true);
             }}
             style={{
               width: "100%",
@@ -87,6 +89,19 @@ const UserAvatar = ({ user, onLogout }) => {
           </button>
         </div>
       )}
+      <ConfirmModal
+        isOpen={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={() => {
+          setShowLogoutConfirm(false);
+          onLogout();
+        }}
+        title="Logout?"
+        message="Are you sure you want to log out?"
+        confirmText="Logout"
+        confirmColor="#ef4444"
+        cancelText="Cancel"
+      />
     </div>
   );
 };

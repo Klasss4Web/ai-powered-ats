@@ -466,13 +466,20 @@ def register_resume_routes(app):
             logger.error("LLM not available for resume match")
             return jsonify({"error": "LLM not available"}), 500
 
-        if "job_description" not in request.form:
+        # Support both multipart/form-data and JSON payloads
+        payload = {}
+        if request.is_json:
+            payload = request.get_json(silent=True) or {}
+        else:
+            payload = request.form.to_dict()
+
+        job_description = payload.get("job_description")
+        if not job_description:
             logger.warning(f"Missing job description in request from user {g.user_id}")
             return jsonify({"error": "Missing job description"}), 400
 
-        job_description = request.form["job_description"]
-
-        # Resume input - either file upload or saved resume ID
+        # Resume input - either file upload, raw text, or saved resume ID
+        resume_text = None
         if "resume" in request.files:
             resume_file = request.files["resume"]
             # CRIT-4: Validate file type and magic bytes before processing
@@ -482,8 +489,10 @@ def register_resume_routes(app):
                 return jsonify({"error": err}), 400
             logger.debug(f"Processing resume file: {resume_file.filename}")
             resume_text = extract_text_from_pdf(resume_file.stream)
-        elif "resume_id" in request.form:
-            resume_id = request.form["resume_id"]
+        elif payload.get("resume") or payload.get("resume_text"):
+            resume_text = payload.get("resume") or payload.get("resume_text")
+        elif payload.get("resume_id"):
+            resume_id = payload.get("resume_id")
             logger.debug(f"Using saved resume ID: {resume_id}")
             db = get_db()
             cursor = db.cursor()
