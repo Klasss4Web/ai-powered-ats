@@ -2,6 +2,12 @@
 ATS Matcher Backend - Main Application Entry Point
 """
 
+import os
+from dotenv import load_dotenv
+
+# Load .env before any other imports that depend on env vars
+load_dotenv()
+
 import time
 from flask import Flask, jsonify, request, g
 from flask_cors import CORS
@@ -18,8 +24,6 @@ from routes.admin import register_admin_routes
 from routes.jobs import register_job_routes
 from routes.applications import register_application_routes
 from routes.features import register_feature_routes
-
-import os
 
 from logger.app_logger import logger
 

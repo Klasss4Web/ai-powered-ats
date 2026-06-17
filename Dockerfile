@@ -10,5 +10,6 @@ RUN pip install gunicorn
 
 EXPOSE 5000
 
-CMD ["gunicorn", "-b", "0.0.0.0:5000", "app:app"]
+# Increase timeout to 120s so long AI calls (OpenRouter) aren't killed by gunicorn
+CMD ["gunicorn", "-b", "0.0.0.0:5000", "--timeout", "120", "app:app"]
 # CMD ["python", "app.py"]
