@@ -102,13 +102,22 @@ const ErrorLog = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError]       = useState(null);
 
-  /* filters */
-  const [days, setDays]               = useState(7);
-  const [statusClass, setStatusClass] = useState("");
-  const [endpointSearch, setEndpointSearch] = useState("");
-  const [endpointFilter, setEndpointFilter] = useState("");  // applied on submit
-  const [page, setPage]               = useState(1);
-  const [perPage, setPerPage]         = useState(25);
+  /* grouped state */
+  const [filters, setFilters]   = useState({
+    days: 7,
+    statusClass: "",
+    endpointSearch: "",
+    endpointFilter: "",
+    startDate: "",
+    endDate: "",
+  });
+  const [pagination, setPagination] = useState({ page: 1, perPage: 25 });
+
+  const { days, statusClass, endpointSearch, endpointFilter, startDate, endDate } = filters;
+  const { page, perPage } = pagination;
+
+  const updateFilter = (key, value) => setFilters((f) => ({ ...f, [key]: value }));
+  const setPage      = (p) => setPagination((pg) => ({ ...pg, page: p }));
 
   const fetchErrors = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -123,9 +132,11 @@ const ErrorLog = () => {
         per_page: perPage,
         status_class: statusClass,
         endpoint: endpointFilter,
-      }).toString();
+      });
+      if (startDate) qs.append("start_date", startDate);
+      if (endDate) qs.append("end_date", endDate);
 
-      const res = await fetch(`${BASE_URL}/admin/errors?${qs}`, {
+      const res = await fetch(`${BASE_URL}/admin/errors?${qs.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -138,21 +149,26 @@ const ErrorLog = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [days, page, perPage, statusClass, endpointFilter]);
+  }, [days, page, perPage, statusClass, endpointFilter, startDate, endDate]);
 
   useEffect(() => { fetchErrors(); }, [fetchErrors]);
 
   /* reset page when filters change */
   const applyFilters = () => {
-    setEndpointFilter(endpointSearch);
+    updateFilter("endpointFilter", endpointSearch);
     setPage(1);
   };
 
   const clearFilters = () => {
-    setEndpointSearch("");
-    setEndpointFilter("");
-    setStatusClass("");
-    setPage(1);
+    setFilters({
+      days: 7,
+      statusClass: "",
+      endpointSearch: "",
+      endpointFilter: "",
+      startDate: "",
+      endDate: "",
+    });
+    setPagination({ page: 1, perPage: 25 });
   };
 
   /* ── loading / error states ── */
@@ -191,7 +207,7 @@ const ErrorLog = () => {
           </p>
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          <select value={days} onChange={e => { setDays(Number(e.target.value)); setPage(1); }} style={st.select}>
+          <select value={days} onChange={e => { updateFilter("days", Number(e.target.value)); setPage(1); }} style={st.select}>
             <option value={1}>Last 24 h</option>
             <option value={7}>Last 7 days</option>
             <option value={14}>Last 14 days</option>
@@ -447,7 +463,7 @@ const ErrorLog = () => {
         <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
           <select
             value={statusClass}
-            onChange={e => { setStatusClass(e.target.value); setPage(1); }}
+            onChange={e => { updateFilter("statusClass", e.target.value); setPage(1); }}
             style={st.select}
           >
             <option value="">All errors</option>
@@ -458,12 +474,24 @@ const ErrorLog = () => {
             type="text"
             placeholder="Filter by endpoint…"
             value={endpointSearch}
-            onChange={e => setEndpointSearch(e.target.value)}
+            onChange={e => updateFilter("endpointSearch", e.target.value)}
             onKeyDown={e => e.key === "Enter" && applyFilters()}
             style={{ ...st.select, minWidth: 200 }}
           />
+          <input
+            type="date"
+            value={startDate}
+            onChange={e => updateFilter("startDate", e.target.value)}
+            style={st.select}
+          />
+          <input
+            type="date"
+            value={endDate}
+            onChange={e => updateFilter("endDate", e.target.value)}
+            style={st.select}
+          />
           <button onClick={applyFilters} style={st.btnFilled}>Apply</button>
-          {(endpointFilter || statusClass) && (
+          {(endpointFilter || statusClass || startDate || endDate) && (
             <button onClick={clearFilters} style={st.btnOutline}>Clear</button>
           )}
           <span style={{ color: "#64748b", fontSize: 13, marginLeft: "auto" }}>
@@ -564,7 +592,7 @@ const ErrorLog = () => {
                 <span style={{ color: "#64748b", fontSize: 12 }}>Rows per page:</span>
                 <select
                   value={perPage}
-                  onChange={(e) => { setPerPage(Number(e.target.value)); setPage(1); }}
+                  onChange={(e) => { setPagination({ page: 1, perPage: Number(e.target.value) }); }}
                   style={{ ...st.select, padding: "6px 10px", fontSize: 12 }}
                 >
                   <option value={10}>10</option>

@@ -91,7 +91,7 @@ def llm_call(prompt, endpoint="unknown"):
         response = model.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
             model=MODEL,
-            timeout=60,
+            timeout=70,
         )
 
         duration_ms = (time.time() - start_time) * 1000
@@ -137,12 +137,15 @@ def llm_call(prompt, endpoint="unknown"):
 
 def record_token_usage(endpoint, model, prompt_tokens, completion_tokens, total_tokens):
     """Record token usage to the database."""
-    # Estimate cost (This will be adjusted based on the model in use and actual pricing)
-    # OpenRouter pricing varies by model, using approximate values
-    cost_per_1k_prompt = 0.001  # $0.001 per 1K prompt tokens
-    cost_per_1k_completion = 0.002  # $0.002 per 1K completion tokens
-    estimated_cost = (prompt_tokens / 1000 * cost_per_1k_prompt) + (
-        completion_tokens / 1000 * cost_per_1k_completion
+# OpenRouter pricing for openai/gpt-oss-120b (per 1M tokens)
+# Prompt: $0.15, Completion: $0.60
+COST_PER_1K_PROMPT = 0.00015      # $0.15 / 1000
+COST_PER_1K_COMPLETION = 0.0006   # $0.60 / 1000
+
+def record_token_usage(endpoint, model, prompt_tokens, completion_tokens, total_tokens):
+    """Record token usage to the database with accurate OpenRouter pricing."""
+    estimated_cost = (prompt_tokens / 1000 * COST_PER_1K_PROMPT) + (
+        completion_tokens / 1000 * COST_PER_1K_COMPLETION
     )
 
     try:

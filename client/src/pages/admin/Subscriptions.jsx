@@ -32,18 +32,29 @@ const Subscriptions = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
-  const [search, setSearch] = useState("");
-  const [planFilter, setPlanFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [page, setPage] = useState(1);
-  const [perPage, setPerPage] = useState(20);
+  const [filters, setFilters] = useState({
+    search: "",
+    planFilter: "",
+    statusFilter: "",
+    startDate: "",
+    endDate: "",
+  });
+  const [pageCfg, setPageCfg] = useState({ page: 1, perPage: 20 });
+
+  const { search, planFilter, statusFilter, startDate, endDate } = filters;
+  const { page, perPage } = pageCfg;
+
+  const updateFilter = (key, value) => setFilters((f) => ({ ...f, [key]: value }));
+  const setPage = (p) => setPageCfg((c) => ({ ...c, page: p }));
 
   // Payment verification modal state
-  const [showVerifyModal, setShowVerifyModal] = useState(false);
-  const [verifyReference, setVerifyReference] = useState("");
-  const [verifyGateway, setVerifyGateway] = useState("paystack");
-  const [verifyLoading, setVerifyLoading] = useState(false);
-  const [verifyResult, setVerifyResult] = useState(null);
+  const [verify, setVerify] = useState({
+    show: false,
+    reference: "",
+    gateway: "paystack",
+    loading: false,
+    result: null,
+  });
 
   const fetchSubs = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -58,8 +69,10 @@ const Subscriptions = () => {
       if (search.trim()) params.append("search", search.trim());
       if (planFilter) params.append("plan", planFilter);
       if (statusFilter) params.append("status", statusFilter);
+      if (startDate) params.append("start_date", startDate);
+      if (endDate) params.append("end_date", endDate);
 
-      const response = await fetchWithTimeout(`/admin/subscriptions?${params}`);
+      const response = await fetchWithTimeout(`/admin/subscriptions?${params.toString()}`);
       if (!response.ok) throw new Error("Failed to fetch subscriptions");
 
       const data = await response.json();
@@ -71,7 +84,7 @@ const Subscriptions = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [page, perPage, search, planFilter, statusFilter]);
+  }, [page, perPage, search, planFilter, statusFilter, startDate, endDate]);
 
   useEffect(() => {
     fetchSubs();
@@ -85,43 +98,46 @@ const Subscriptions = () => {
 
   const handleVerifyPayment = async (e) => {
     e.preventDefault();
-    if (!verifyReference.trim()) return;
-    setVerifyLoading(true);
-    setVerifyResult(null);
+    if (!verify.reference.trim()) return;
+    setVerify((v) => ({ ...v, loading: true, result: null }));
     try {
       const response = await fetchWithTimeout(
-        `/payment/manual-verify/${encodeURIComponent(verifyReference.trim())}`,
+        `/payment/manual-verify/${encodeURIComponent(verify.reference.trim())}`,
         {
           method: "POST",
-          body: JSON.stringify({ gateway: verifyGateway }),
+          body: JSON.stringify({ gateway: verify.gateway }),
         },
       );
       const data = await response.json().catch(() => ({}));
       if (response.ok) {
-        setVerifyResult({
-          type: data.status === "already_verified" ? "warning" : "success",
-          message:
-            data.message ||
-            (data.status === "already_verified"
-              ? "This payment has already been verified."
-              : "Payment verified successfully!"),
-        });
+        setVerify((v) => ({
+          ...v,
+          loading: false,
+          result: {
+            type: data.status === "already_verified" ? "warning" : "success",
+            message:
+              data.message ||
+              (data.status === "already_verified"
+                ? "This payment has already been verified."
+                : "Payment verified successfully!"),
+          },
+        }));
         if (data.status !== "already_verified") {
           fetchSubs(true);
         }
       } else {
-        setVerifyResult({
-          type: "error",
-          message: data.error || "Verification failed.",
-        });
+        setVerify((v) => ({
+          ...v,
+          loading: false,
+          result: { type: "error", message: data.error || "Verification failed." },
+        }));
       }
     } catch (err) {
-      setVerifyResult({
-        type: "error",
-        message: "Network error. Please try again.",
-      });
-    } finally {
-      setVerifyLoading(false);
+      setVerify((v) => ({
+        ...v,
+        loading: false,
+        result: { type: "error", message: "Network error. Please try again." },
+      }));
     }
   };
 
@@ -159,10 +175,7 @@ const Subscriptions = () => {
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
           <button
             onClick={() => {
-              setVerifyReference("");
-              setVerifyGateway("paystack");
-              setVerifyResult(null);
-              setShowVerifyModal(true);
+              setVerify({ reference: "", gateway: "paystack", result: null, show: true, loading: false });
             }}
             style={st.btnFilled}
           >
@@ -181,7 +194,7 @@ const Subscriptions = () => {
             type="text"
             placeholder="Search by user name or email…"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => updateFilter("search", e.target.value)}
             style={{ ...st.input, flex: 1 }}
           />
           <button type="submit" style={st.btnFilled}>Search</button>
@@ -189,7 +202,7 @@ const Subscriptions = () => {
 
         <select
           value={planFilter}
-          onChange={(e) => { setPlanFilter(e.target.value); setPage(1); }}
+          onChange={(e) => { updateFilter("planFilter", e.target.value); setPage(1); }}
           style={st.select}
         >
           <option value="">All Plans</option>
@@ -200,7 +213,7 @@ const Subscriptions = () => {
 
         <select
           value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+          onChange={(e) => { updateFilter("statusFilter", e.target.value); setPage(1); }}
           style={st.select}
         >
           <option value="">All Statuses</option>
@@ -208,6 +221,19 @@ const Subscriptions = () => {
           <option value="expired">Expired</option>
           <option value="cancelled">Cancelled</option>
         </select>
+
+        <input
+          type="date"
+          value={startDate}
+          onChange={(e) => updateFilter("startDate", e.target.value)}
+          style={st.select}
+        />
+        <input
+          type="date"
+          value={endDate}
+          onChange={(e) => updateFilter("endDate", e.target.value)}
+          style={st.select}
+        />
       </div>
 
       {/* ── Table ── */}
@@ -289,7 +315,7 @@ const Subscriptions = () => {
               <span style={{ color: "#64748b", fontSize: 12 }}>Rows:</span>
               <select
                 value={perPage}
-                onChange={(e) => { setPerPage(Number(e.target.value)); setPage(1); }}
+                onChange={(e) => { setPageCfg({ page: 1, perPage: Number(e.target.value) }); }}
                 style={{ ...st.select, padding: "6px 10px", fontSize: 12 }}
               >
                 <option value={10}>10</option>
@@ -344,12 +370,12 @@ const Subscriptions = () => {
       )}
 
       {/* ── Payment Verification Modal ── */}
-      {showVerifyModal && (
-        <div style={st.modalOverlay} onClick={(e) => e.target === e.currentTarget && setShowVerifyModal(false)}>
+      {verify.show && (
+        <div style={st.modalOverlay} onClick={(e) => e.target === e.currentTarget && setVerify((v) => ({ ...v, show: false }))}>
           <div style={st.modalContent}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
               <h2 style={{ color: "#e2e8f0", margin: 0, fontSize: 20 }}>Verify Payment</h2>
-              <button onClick={() => setShowVerifyModal(false)} style={st.closeBtn}>✕</button>
+              <button onClick={() => setVerify((v) => ({ ...v, show: false }))} style={st.closeBtn}>✕</button>
             </div>
 
             <form onSubmit={handleVerifyPayment}>
@@ -357,8 +383,8 @@ const Subscriptions = () => {
                 <label style={st.label}>Reference / Transaction ID</label>
                 <input
                   type="text"
-                  value={verifyReference}
-                  onChange={(e) => setVerifyReference(e.target.value)}
+                  value={verify.reference}
+                  onChange={(e) => setVerify((v) => ({ ...v, reference: e.target.value }))}
                   placeholder="e.g. 9vbjhdc02o"
                   required
                   style={st.input}
@@ -368,8 +394,8 @@ const Subscriptions = () => {
               <div style={{ marginBottom: 20 }}>
                 <label style={st.label}>Gateway</label>
                 <select
-                  value={verifyGateway}
-                  onChange={(e) => setVerifyGateway(e.target.value)}
+                  value={verify.gateway}
+                  onChange={(e) => setVerify((v) => ({ ...v, gateway: e.target.value }))}
                   style={st.select}
                 >
                   <option value="paystack">Paystack</option>
@@ -379,30 +405,30 @@ const Subscriptions = () => {
 
               <button
                 type="submit"
-                disabled={verifyLoading || !verifyReference.trim()}
+                disabled={verify.loading || !verify.reference.trim()}
                 style={{
                   ...st.btnFilled,
                   width: "100%",
-                  opacity: verifyLoading || !verifyReference.trim() ? 0.6 : 1,
-                  cursor: verifyLoading || !verifyReference.trim() ? "not-allowed" : "pointer",
+                  opacity: verify.loading || !verify.reference.trim() ? 0.6 : 1,
+                  cursor: verify.loading || !verify.reference.trim() ? "not-allowed" : "pointer",
                 }}
               >
-                {verifyLoading ? "Verifying…" : "Verify Payment"}
+                {verify.loading ? "Verifying…" : "Verify Payment"}
               </button>
             </form>
 
-            {verifyResult && (
+            {verify.result && (
               <div
                 style={{
                   marginTop: 16,
                   padding: 12,
                   borderRadius: 8,
-                  backgroundColor: verifyResult.type === "success" ? "rgba(52,211,153,0.1)" : verifyResult.type === "warning" ? "rgba(251,191,36,0.1)" : "rgba(239,68,68,0.1)",
-                  color: verifyResult.type === "success" ? "#34d399" : verifyResult.type === "warning" ? "#fbbf24" : "#ef4444",
+                  backgroundColor: verify.result.type === "success" ? "rgba(52,211,153,0.1)" : verify.result.type === "warning" ? "rgba(251,191,36,0.1)" : "rgba(239,68,68,0.1)",
+                  color: verify.result.type === "success" ? "#34d399" : verify.result.type === "warning" ? "#fbbf24" : "#ef4444",
                   fontSize: 14,
                 }}
               >
-                {verifyResult.message}
+                {verify.result.message}
               </div>
             )}
           </div>

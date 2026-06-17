@@ -74,6 +74,19 @@ def after_request(response):
         ip_address = request.remote_addr
         user_agent = request.headers.get("User-Agent", "")[:500]  # Limit length
 
+        # Log failed or slow requests to console for immediate visibility
+        log_msg = (
+            f"{request.method} {request.path} | "
+            f"Status: {response.status_code} | "
+            f"Duration: {round(response_time_ms, 2)}ms | "
+            f"User: {user_id or 'anonymous'} | "
+            f"IP: {ip_address}"
+        )
+        if response.status_code >= 400:
+            logger.error(f"REQUEST FAILED | {log_msg}")
+        elif response_time_ms > 5000:
+            logger.warning(f"SLOW REQUEST | {log_msg}")
+
         # Record to database
         db = get_db()
         cursor = db.cursor()

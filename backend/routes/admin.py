@@ -29,6 +29,47 @@ def format_endpoint_name(endpoint):
     return endpoint_names.get(endpoint, endpoint)
 
 
+def _parse_date_range(default_days=7, max_days=90):
+    """
+    Parse optional start_date / end_date query params (YYYY-MM-DD).
+    Falls back to `days` if no explicit range is given.
+    Returns (date_clause, params) ready for SQL WHERE.
+    """
+    start_date = request.args.get("start_date", "").strip()
+    end_date = request.args.get("end_date", "").strip()
+
+    if start_date and end_date:
+        try:
+            s = datetime.strptime(start_date, "%Y-%m-%d").date()
+            e = datetime.strptime(end_date, "%Y-%m-%d").date()
+            return "created_at BETWEEN %s AND %s", [s, e]
+        except ValueError:
+            pass  # fall through to days fallback
+
+    days = min(request.args.get("days", default_days, type=int), max_days)
+    return "created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')", [days]
+
+
+def _parse_date_range_alias(alias="am", default_days=7, max_days=90):
+    """
+    Same as _parse_date_range but prefixes created_at with an alias
+    for JOIN queries.
+    """
+    start_date = request.args.get("start_date", "").strip()
+    end_date = request.args.get("end_date", "").strip()
+
+    if start_date and end_date:
+        try:
+            s = datetime.strptime(start_date, "%Y-%m-%d").date()
+            e = datetime.strptime(end_date, "%Y-%m-%d").date()
+            return f"{alias}.created_at BETWEEN %s AND %s", [s, e]
+        except ValueError:
+            pass
+
+    days = min(request.args.get("days", default_days, type=int), max_days)
+    return f"{alias}.created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')", [days]
+
+
 def register_admin_routes(app):
     """Register all admin API routes."""
 
@@ -38,16 +79,23 @@ def register_admin_routes(app):
     @app.route("/api/admin/dashboard", methods=["GET"])
     @admin_required
     def admin_dashboard():
-        """Get overview statistics for admin dashboard."""
+        """Get overview statistics for admin dashboard with optional date range."""
         try:
             db = get_db()
             cursor = db.cursor()
 
-            # Total users
+            date_clause_ut, date_params_ut = _parse_date_range(default_days=7, max_days=365)
+            date_clause_api, date_params_api = _parse_date_range_alias(alias="am", default_days=7, max_days=365)
+            date_clause_tu, date_params_tu = _parse_date_range(default_days=7, max_days=365)
+
+            # Use the same date range for users
+            date_clause_users, date_params_users = _parse_date_range(default_days=7, max_days=365)
+
+            # Total users (all time — not affected by date range)
             cursor.execute("SELECT COUNT(*) as count FROM users")
             total_users = cursor.fetchone()["count"]
 
-            # Users by subscription type
+            # Users by subscription type (all time)
             cursor.execute("""
                 SELECT subscription_type, COUNT(*) as count 
                 FROM users 
@@ -57,33 +105,25 @@ def register_admin_routes(app):
                 row["subscription_type"]: row["count"] for row in cursor.fetchall()
             }
 
-            # New users today
-            cursor.execute("""
+            # New users in selected period
+            cursor.execute(
+                f"""
                 SELECT COUNT(*) as count FROM users 
-                WHERE DATE(created_at) = CURRENT_DATE
-            """)
-            new_users_today = cursor.fetchone()["count"]
+                WHERE {date_clause_users}
+            """,
+                tuple(date_params_users),
+            )
+            new_users_period = cursor.fetchone()["count"]
 
-            # New users this week
-            cursor.execute("""
-                SELECT COUNT(*) as count FROM users 
-                WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'
-            """)
-            new_users_week = cursor.fetchone()["count"]
-
-            # Total analyses today
-            cursor.execute("""
+            # Total analyses in selected period
+            cursor.execute(
+                f"""
                 SELECT COUNT(*) as count FROM usage_tracking 
-                WHERE action_type = 'analysis' AND DATE(created_at) = CURRENT_DATE
-            """)
-            analyses_today = cursor.fetchone()["count"]
-
-            # Total analyses this week
-            cursor.execute("""
-                SELECT COUNT(*) as count FROM usage_tracking 
-                WHERE action_type = 'analysis' AND created_at >= CURRENT_DATE - INTERVAL '7 days'
-            """)
-            analyses_week = cursor.fetchone()["count"]
+                WHERE action_type = 'analysis' AND {date_clause_ut}
+            """,
+                tuple(date_params_ut),
+            )
+            analyses_period = cursor.fetchone()["count"]
 
             # Total analyses all time
             cursor.execute("""
@@ -92,25 +132,31 @@ def register_admin_routes(app):
             """)
             analyses_total = cursor.fetchone()["count"]
 
-            # API metrics summary (if available)
-            cursor.execute("""
+            # API metrics summary in selected period
+            cursor.execute(
+                f"""
                 SELECT 
                     COUNT(*) as total_requests,
                     AVG(response_time_ms) as avg_response_time,
                     COUNT(CASE WHEN status_code >= 400 THEN 1 END) as error_count
-                FROM api_metrics 
-                WHERE created_at >= CURRENT_DATE - INTERVAL '24 hours'
-            """)
+                FROM api_metrics am
+                WHERE {date_clause_api}
+            """,
+                tuple(date_params_api),
+            )
             api_summary = cursor.fetchone()
 
-            # Token usage today
-            cursor.execute("""
+            # Token usage in selected period
+            cursor.execute(
+                f"""
                 SELECT 
                     COALESCE(SUM(total_tokens), 0) as total_tokens,
                     COALESCE(SUM(estimated_cost), 0) as total_cost
                 FROM token_usage 
-                WHERE DATE(created_at) = CURRENT_DATE
-            """)
+                WHERE {date_clause_tu}
+            """,
+                tuple(date_params_tu),
+            )
             token_summary = cursor.fetchone()
 
             return jsonify(
@@ -118,16 +164,14 @@ def register_admin_routes(app):
                     "users": {
                         "total": total_users,
                         "by_subscription": users_by_subscription,
-                        "new_today": new_users_today,
-                        "new_this_week": new_users_week,
+                        "new_in_period": new_users_period,
                     },
                     "analyses": {
-                        "today": analyses_today,
-                        "this_week": analyses_week,
+                        "period": analyses_period,
                         "total": analyses_total,
                     },
                     "api": {
-                        "requests_24h": api_summary["total_requests"]
+                        "requests_period": api_summary["total_requests"]
                         if api_summary
                         else 0,
                         "avg_response_time_ms": round(
@@ -135,16 +179,17 @@ def register_admin_routes(app):
                         )
                         if api_summary
                         else 0,
-                        "errors_24h": api_summary["error_count"] if api_summary else 0,
+                        "errors_period": api_summary["error_count"] if api_summary else 0,
                     },
                     "tokens": {
-                        "used_today": token_summary["total_tokens"]
+                        "used_period": token_summary["total_tokens"]
                         if token_summary
                         else 0,
-                        "cost_today": round(token_summary["total_cost"] or 0, 4)
+                        "cost_period": round(token_summary["total_cost"] or 0, 4)
                         if token_summary
                         else 0,
                     },
+                    "period_days": request.args.get("days", 7, type=int),
                 }
             )
 
@@ -163,23 +208,20 @@ def register_admin_routes(app):
             db = get_db()
             cursor = db.cursor()
 
-            # Get time range from query params (default: 7 days)
-            days = request.args.get("days", 7, type=int)
-            if days > 90:
-                days = 90  # Limit to 90 days
+            date_clause, date_params = _parse_date_range(default_days=7, max_days=90)
 
             # Daily active users
             cursor.execute(
-                """
+                f"""
                 SELECT 
                     DATE(created_at) as date,
                     COUNT(DISTINCT user_id) as active_users
                 FROM usage_tracking
-                WHERE created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                WHERE {date_clause}
                 GROUP BY DATE(created_at)
                 ORDER BY date
             """,
-                (days,),
+                tuple(date_params),
             )
             daily_active_users = [
                 {"date": str(row["date"]), "count": row["active_users"]}
@@ -188,17 +230,17 @@ def register_admin_routes(app):
 
             # Daily analyses
             cursor.execute(
-                """
+                f"""
                 SELECT 
                     DATE(created_at) as date,
                     COUNT(*) as count
                 FROM usage_tracking
                 WHERE action_type = 'analysis' 
-                    AND created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                    AND {date_clause}
                 GROUP BY DATE(created_at)
                 ORDER BY date
             """,
-                (days,),
+                tuple(date_params),
             )
             daily_analyses = [
                 {"date": str(row["date"]), "count": row["count"]}
@@ -207,16 +249,16 @@ def register_admin_routes(app):
 
             # Daily new registrations
             cursor.execute(
-                """
+                f"""
                 SELECT 
                     DATE(created_at) as date,
                     COUNT(*) as count
                 FROM users
-                WHERE created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                WHERE {date_clause}
                 GROUP BY DATE(created_at)
                 ORDER BY date
             """,
-                (days,),
+                tuple(date_params),
             )
             daily_registrations = [
                 {"date": str(row["date"]), "count": row["count"]}
@@ -240,18 +282,18 @@ def register_admin_routes(app):
 
             # Top endpoints (from api_metrics)
             cursor.execute(
-                """
+                f"""
                 SELECT 
                     endpoint,
                     COUNT(*) as count,
                     AVG(response_time_ms) as avg_time
                 FROM api_metrics
-                WHERE created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                WHERE {date_clause}
                 GROUP BY endpoint
                 ORDER BY count DESC
                 LIMIT 10
             """,
-                (days,),
+                tuple(date_params),
             )
             top_endpoints = [
                 {
@@ -269,7 +311,7 @@ def register_admin_routes(app):
                     "daily_registrations": daily_registrations,
                     "hourly_traffic": hourly_traffic,
                     "top_endpoints": top_endpoints,
-                    "period_days": days,
+                    "period_days": request.args.get("days", 7, type=int),
                 }
             )
 
@@ -288,13 +330,11 @@ def register_admin_routes(app):
             db = get_db()
             cursor = db.cursor()
 
-            days = request.args.get("days", 7, type=int)
-            if days > 90:
-                days = 90
+            date_clause, date_params = _parse_date_range(default_days=7, max_days=90)
 
             # Daily token usage
             cursor.execute(
-                """
+                f"""
                 SELECT 
                     DATE(created_at) as date,
                     SUM(prompt_tokens) as prompt_tokens,
@@ -302,11 +342,11 @@ def register_admin_routes(app):
                     SUM(total_tokens) as total_tokens,
                     SUM(estimated_cost) as cost
                 FROM token_usage
-                WHERE created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                WHERE {date_clause}
                 GROUP BY DATE(created_at)
                 ORDER BY date
             """,
-                (days,),
+                tuple(date_params),
             )
             daily_usage = [
                 {
@@ -321,18 +361,18 @@ def register_admin_routes(app):
 
             # Usage by endpoint
             cursor.execute(
-                """
+                f"""
                 SELECT 
                     endpoint,
                     SUM(total_tokens) as total_tokens,
                     SUM(estimated_cost) as cost,
                     COUNT(*) as request_count
                 FROM token_usage
-                WHERE created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                WHERE {date_clause}
                 GROUP BY endpoint
                 ORDER BY total_tokens DESC
             """,
-                (days,),
+                tuple(date_params),
             )
             by_endpoint = [
                 {
@@ -346,7 +386,7 @@ def register_admin_routes(app):
 
             # Total summary
             cursor.execute(
-                """
+                f"""
                 SELECT 
                     SUM(prompt_tokens) as prompt_tokens,
                     SUM(completion_tokens) as completion_tokens,
@@ -354,15 +394,15 @@ def register_admin_routes(app):
                     SUM(estimated_cost) as total_cost,
                     COUNT(*) as total_requests
                 FROM token_usage
-                WHERE created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                WHERE {date_clause}
             """,
-                (days,),
+                tuple(date_params),
             )
             summary = cursor.fetchone()
 
             # Top users by token usage
             cursor.execute(
-                """
+                f"""
                 SELECT 
                     u.id as user_id,
                     u.email,
@@ -372,12 +412,12 @@ def register_admin_routes(app):
                     COUNT(*) as request_count
                 FROM token_usage t
                 JOIN users u ON t.user_id = u.id
-                WHERE t.created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                WHERE t.{date_clause}
                 GROUP BY u.id, u.email, u.name
                 ORDER BY total_tokens DESC
                 LIMIT 10
             """,
-                (days,),
+                tuple(date_params),
             )
             top_users_raw = cursor.fetchall()
 
@@ -386,7 +426,7 @@ def register_admin_routes(app):
             if top_users_raw:
                 top_user_ids = [r["user_id"] for r in top_users_raw]
                 cursor.execute(
-                    """
+                    f"""
                     SELECT
                         user_id,
                         endpoint,
@@ -394,11 +434,11 @@ def register_admin_routes(app):
                         SUM(total_tokens) AS tokens
                     FROM token_usage
                     WHERE user_id = ANY(%s)
-                      AND created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                      AND {date_clause}
                     GROUP BY user_id, endpoint
                     ORDER BY tokens DESC
                     """,
-                    (top_user_ids, days),
+                    (top_user_ids,) + tuple(date_params),
                 )
                 breakdown_rows = cursor.fetchall()
                 # Build a dict keyed by user_id for O(1) lookup
@@ -445,13 +485,144 @@ def register_admin_routes(app):
                         else 0,
                     },
                     "top_users": top_users,
-                    "period_days": days,
+                    "period_days": request.args.get("days", 7, type=int),
                 }
             )
 
         except Exception as e:
             logger.error(f"Token analytics error: {e}")
             return jsonify({"error": "Failed to fetch token data"}), 500
+
+    # ---------------------------
+    # MONTHLY TOKEN ANALYTICS
+    # ---------------------------
+    @app.route("/api/admin/analytics/tokens/monthly", methods=["GET"])
+    @admin_required
+    def admin_monthly_token_analytics():
+        """Get monthly token usage for billing / reporting."""
+        try:
+            db = get_db()
+            cursor = db.cursor()
+
+            months = request.args.get("months", 12, type=int)
+            if months > 24:
+                months = 24
+
+            cursor.execute(
+                """
+                SELECT
+                    DATE_TRUNC('month', created_at) as month,
+                    SUM(prompt_tokens) as prompt_tokens,
+                    SUM(completion_tokens) as completion_tokens,
+                    SUM(total_tokens) as total_tokens,
+                    SUM(estimated_cost) as cost,
+                    COUNT(*) as request_count
+                FROM token_usage
+                WHERE created_at >= DATE_TRUNC('month', CURRENT_DATE) - (%s * INTERVAL '1 month')
+                GROUP BY DATE_TRUNC('month', created_at)
+                ORDER BY month DESC
+            """,
+                (months,),
+            )
+            monthly = [
+                {
+                    "month": row["month"].strftime("%Y-%m"),
+                    "prompt_tokens": row["prompt_tokens"] or 0,
+                    "completion_tokens": row["completion_tokens"] or 0,
+                    "total_tokens": row["total_tokens"] or 0,
+                    "cost": round(row["cost"] or 0, 4),
+                    "requests": row["request_count"],
+                }
+                for row in cursor.fetchall()
+            ]
+
+            return jsonify({
+                "monthly": monthly,
+                "summary": {
+                    "total_cost": round(sum(m["cost"] for m in monthly), 4),
+                    "total_tokens": sum(m["total_tokens"] for m in monthly),
+                    "total_requests": sum(m["requests"] for m in monthly),
+                }
+            }), 200
+
+        except Exception as e:
+            logger.error(f"Monthly token analytics error: {e}")
+            return jsonify({"error": "Failed to fetch monthly token data"}), 500
+
+    @app.route("/api/admin/analytics/tokens/monthly-by-user", methods=["GET"])
+    @admin_required
+    def admin_monthly_tokens_by_user():
+        """Monthly token usage broken down by user — useful for invoicing."""
+        try:
+            db = get_db()
+            cursor = db.cursor()
+
+            year_month = request.args.get("month")  # e.g. "2025-06"
+
+            if year_month:
+                cursor.execute(
+                    """
+                    SELECT
+                        u.id as user_id,
+                        u.email,
+                        u.name,
+                        SUM(t.prompt_tokens) as prompt_tokens,
+                        SUM(t.completion_tokens) as completion_tokens,
+                        SUM(t.total_tokens) as total_tokens,
+                        SUM(t.estimated_cost) as cost,
+                        COUNT(*) as request_count
+                    FROM token_usage t
+                    JOIN users u ON t.user_id = u.id
+                    WHERE TO_CHAR(t.created_at, 'YYYY-MM') = %s
+                    GROUP BY u.id, u.email, u.name
+                    ORDER BY cost DESC
+                """,
+                    (year_month,),
+                )
+            else:
+                cursor.execute(
+                    """
+                    SELECT
+                        u.id as user_id,
+                        u.email,
+                        u.name,
+                        SUM(t.prompt_tokens) as prompt_tokens,
+                        SUM(t.completion_tokens) as completion_tokens,
+                        SUM(t.total_tokens) as total_tokens,
+                        SUM(t.estimated_cost) as cost,
+                        COUNT(*) as request_count
+                    FROM token_usage t
+                    JOIN users u ON t.user_id = u.id
+                    WHERE t.created_at >= DATE_TRUNC('month', CURRENT_DATE)
+                    GROUP BY u.id, u.email, u.name
+                    ORDER BY cost DESC
+                """
+                )
+
+            results = [
+                {
+                    "user_id": row["user_id"],
+                    "email": row["email"],
+                    "name": row["name"],
+                    "prompt_tokens": row["prompt_tokens"] or 0,
+                    "completion_tokens": row["completion_tokens"] or 0,
+                    "total_tokens": row["total_tokens"] or 0,
+                    "cost": round(row["cost"] or 0, 4),
+                    "requests": row["request_count"],
+                }
+                for row in cursor.fetchall()
+            ]
+
+            return jsonify({
+                "month": year_month or datetime.utcnow().strftime("%Y-%m"),
+                "users": results,
+                "total_cost": round(sum(r["cost"] for r in results), 4),
+                "total_tokens": sum(r["total_tokens"] for r in results),
+            }), 200
+
+        except Exception as e:
+            logger.error(f"Monthly by-user analytics error: {e}")
+            return jsonify({"error": "Failed to fetch user billing data"}), 500
 
     # ---------------------------
     # USERS MANAGEMENT
@@ -469,6 +640,10 @@ def register_admin_routes(app):
             search = request.args.get("search", "")
             subscription_filter = request.args.get("subscription", "")
 
+            # Date range filter
+            start_date = request.args.get("start_date", "").strip()
+            end_date = request.args.get("end_date", "").strip()
+
             if per_page > 100:
                 per_page = 100
 
@@ -485,6 +660,10 @@ def register_admin_routes(app):
             if subscription_filter:
                 where_clauses.append("subscription_type = %s")
                 params.append(subscription_filter)
+
+            if start_date and end_date:
+                where_clauses.append("created_at BETWEEN %s AND %s")
+                params.extend([start_date, end_date])
 
             where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 
@@ -625,6 +804,10 @@ def register_admin_routes(app):
             plan_filter = request.args.get("plan", "")
             status_filter = request.args.get("status", "")
 
+            # Date range filter on created_at
+            start_date = request.args.get("start_date", "").strip()
+            end_date = request.args.get("end_date", "").strip()
+
             if per_page > 100:
                 per_page = 100
             offset = (page - 1) * per_page
@@ -643,6 +826,10 @@ def register_admin_routes(app):
             if status_filter:
                 where_clauses.append("s.status = %s")
                 params.append(status_filter)
+
+            if start_date and end_date:
+                where_clauses.append("s.created_at BETWEEN %s AND %s")
+                params.extend([start_date, end_date])
 
             where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
 
@@ -720,25 +907,23 @@ def register_admin_routes(app):
             db = get_db()
             cursor = db.cursor()
 
-            days = request.args.get("days", 7, type=int)
-            if days > 90:
-                days = 90
+            date_clause, date_params = _parse_date_range(default_days=7, max_days=90)
 
             # Response time trends
             cursor.execute(
-                """
-                SELECT 
+                f"""
+                SELECT
                     DATE(created_at) as date,
                     AVG(response_time_ms) as avg_time,
                     MIN(response_time_ms) as min_time,
                     MAX(response_time_ms) as max_time,
                     PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY response_time_ms) as p95
                 FROM api_metrics
-                WHERE created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                WHERE {date_clause}
                 GROUP BY DATE(created_at)
                 ORDER BY date
             """,
-                (days,),
+                tuple(date_params),
             )
             response_times = [
                 {
@@ -753,18 +938,18 @@ def register_admin_routes(app):
 
             # Error rates
             cursor.execute(
-                """
-                SELECT 
+                f"""
+                SELECT
                     DATE(created_at) as date,
                     COUNT(*) as total,
                     COUNT(CASE WHEN status_code >= 400 THEN 1 END) as errors,
                     COUNT(CASE WHEN status_code >= 500 THEN 1 END) as server_errors
                 FROM api_metrics
-                WHERE created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                WHERE {date_clause}
                 GROUP BY DATE(created_at)
                 ORDER BY date
             """,
-                (days,),
+                tuple(date_params),
             )
             error_rates = [
                 {
@@ -781,19 +966,19 @@ def register_admin_routes(app):
 
             # Slowest endpoints
             cursor.execute(
-                """
-                SELECT 
+                f"""
+                SELECT
                     endpoint,
                     AVG(response_time_ms) as avg_time,
                     COUNT(*) as count
                 FROM api_metrics
-                WHERE created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                WHERE {date_clause}
                 GROUP BY endpoint
                 HAVING COUNT(*) >= 5
                 ORDER BY avg_time DESC
                 LIMIT 10
             """,
-                (days,),
+                tuple(date_params),
             )
             slowest_endpoints = [
                 {
@@ -809,7 +994,7 @@ def register_admin_routes(app):
                     "response_times": response_times,
                     "error_rates": error_rates,
                     "slowest_endpoints": slowest_endpoints,
-                    "period_days": days,
+                    "period_days": request.args.get("days", 7, type=int),
                 }
             )
 
@@ -828,6 +1013,7 @@ def register_admin_routes(app):
             db = get_db()
             cursor = db.cursor()
 
+            date_clause, date_params = _parse_date_range(default_days=30, max_days=90)
             limit = request.args.get("limit", 50, type=int)
             page = request.args.get("page", 1, type=int)
             per_page = request.args.get("per_page", 50, type=int)
@@ -839,16 +1025,18 @@ def register_admin_routes(app):
             offset = (page - 1) * per_page
 
             cursor.execute(
-                """
+                f"""
                 SELECT COUNT(*) AS total
                 FROM usage_tracking ut
                 JOIN users u ON ut.user_id = u.id
-            """
+                WHERE ut.{date_clause}
+            """,
+                tuple(date_params),
             )
             total = cursor.fetchone()["total"]
 
             cursor.execute(
-                """
+                f"""
                 SELECT 
                     ut.id,
                     ut.action_type,
@@ -858,10 +1046,11 @@ def register_admin_routes(app):
                     u.name
                 FROM usage_tracking ut
                 JOIN users u ON ut.user_id = u.id
+                WHERE ut.{date_clause}
                 ORDER BY ut.created_at DESC
                 LIMIT %s OFFSET %s
             """,
-                (per_page, offset),
+                tuple(date_params) + (per_page, offset),
             )
 
             activities = [
@@ -917,7 +1106,8 @@ def register_admin_routes(app):
             db = get_db()
             cursor = db.cursor()
 
-            days = min(request.args.get("days", 7, type=int), 90)
+            date_clause, date_params = _parse_date_range(default_days=7, max_days=90)
+            date_clause_am, date_params_am = _parse_date_range_alias(alias="am", default_days=7, max_days=90)
             page = request.args.get("page", 1, type=int)
             per_page = min(request.args.get("per_page", 50, type=int), 200)
             status_class = request.args.get("status_class", "")   # "4xx" | "5xx" | ""
@@ -929,13 +1119,13 @@ def register_admin_routes(app):
             # am_where_sql   — for JOIN queries where api_metrics is aliased as `am`
             where_parts = [
                 "status_code >= 400",
-                "created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')",
+                date_clause,
             ]
             am_where_parts = [
                 "am.status_code >= 400",
-                "am.created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')",
+                date_clause_am,
             ]
-            params = [days]
+            params = list(date_params)
 
             if status_class == "4xx":
                 where_parts.append("status_code < 500")
@@ -974,8 +1164,8 @@ def register_admin_routes(app):
             summary_row = cursor.fetchone()
 
             # Total requests in same window for error rate
-            rate_params = [days]
-            rate_where = "created_at >= CURRENT_DATE - (%s * INTERVAL '1 day')"
+            rate_params = list(date_params)
+            rate_where = date_clause
             if endpoint_filter:
                 rate_where += " AND endpoint ILIKE %s"
                 rate_params.append(f"%{endpoint_filter}%")
@@ -1187,7 +1377,7 @@ def register_admin_routes(app):
                         "pages": max(1, (total_errors + per_page - 1) // per_page),
                     },
                     "filters": {
-                        "days": days,
+                        "days": request.args.get("days", 7, type=int),
                         "status_class": status_class,
                         "endpoint": endpoint_filter,
                     },

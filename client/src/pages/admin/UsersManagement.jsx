@@ -7,13 +7,21 @@ const UsersManagement = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
-  const [search, setSearch] = useState("");
-  const [subscriptionFilter, setSubscriptionFilter] = useState("");
+
+  const [filters, setFilters] = useState({
+    search: "",
+    subscriptionFilter: "",
+    startDate: "",
+    endDate: "",
+  });
   const [page, setPage] = useState(1);
+
+  const { search, subscriptionFilter, startDate, endDate } = filters;
+  const updateFilter = (key, value) => setFilters((f) => ({ ...f, [key]: value }));
 
   useEffect(() => {
     fetchUsers();
-  }, [page, subscriptionFilter]);
+  }, [page, subscriptionFilter, startDate, endDate]);
 
   const fetchUsers = async (searchQuery = search, isRefresh = false) => {
     if (isRefresh) {
@@ -32,8 +40,10 @@ const UsersManagement = () => {
 
       if (searchQuery) params.append("search", searchQuery);
       if (subscriptionFilter) params.append("subscription", subscriptionFilter);
+      if (startDate) params.append("start_date", startDate);
+      if (endDate) params.append("end_date", endDate);
 
-      const response = await fetch(`${BASE_URL}/admin/users?${params}`, {
+      const response = await fetch(`${BASE_URL}/admin/users?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -162,7 +172,7 @@ const UsersManagement = () => {
             type="text"
             placeholder="Search by email or name..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => updateFilter("search", e.target.value)}
             style={styles.searchInput}
           />
           <button type="submit" style={styles.searchBtn}>Search</button>
@@ -171,7 +181,7 @@ const UsersManagement = () => {
         <select
           value={subscriptionFilter}
           onChange={(e) => {
-            setSubscriptionFilter(e.target.value);
+            updateFilter("subscriptionFilter", e.target.value);
             setPage(1);
           }}
           style={styles.select}
@@ -180,6 +190,19 @@ const UsersManagement = () => {
           <option value="free">Free</option>
           <option value="premium">Premium</option>
         </select>
+
+        <input
+          type="date"
+          value={startDate}
+          onChange={(e) => updateFilter("startDate", e.target.value)}
+          style={styles.select}
+        />
+        <input
+          type="date"
+          value={endDate}
+          onChange={(e) => updateFilter("endDate", e.target.value)}
+          style={styles.select}
+        />
 
         <button 
           onClick={() => fetchUsers(search, true)} 

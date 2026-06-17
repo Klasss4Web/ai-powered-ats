@@ -8,8 +8,18 @@ const ActivityLog = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
-  const [page, setPage] = useState(1);
-  const [perPage, setPerPage] = useState(50);
+
+  const [filters, setFilters] = useState({
+    startDate: "",
+    endDate: "",
+  });
+  const [pageCfg, setPageCfg] = useState({ page: 1, perPage: 50 });
+
+  const { startDate, endDate } = filters;
+  const { page, perPage } = pageCfg;
+
+  const updateFilter = (key, value) => setFilters((f) => ({ ...f, [key]: value }));
+  const setPage = (p) => setPageCfg((c) => ({ ...c, page: p }));
 
   const fetchActivities = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -17,7 +27,11 @@ const ActivityLog = () => {
     setError(null);
 
     try {
-      const response = await fetchWithTimeout(`/admin/activity?page=${page}&per_page=${perPage}`);
+      const params = new URLSearchParams({ page: page.toString(), per_page: perPage.toString() });
+      if (startDate) params.append("start_date", startDate);
+      if (endDate) params.append("end_date", endDate);
+
+      const response = await fetchWithTimeout(`/admin/activity?${params.toString()}`);
       if (!response.ok) throw new Error("Failed to fetch activity log");
 
       const data = await response.json();
@@ -29,7 +43,7 @@ const ActivityLog = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [page, perPage]);
+  }, [page, perPage, startDate, endDate]);
 
   useEffect(() => {
     fetchActivities();
@@ -148,6 +162,18 @@ const ActivityLog = () => {
           </p>
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <input
+            type="date"
+            value={startDate}
+            onChange={e => updateFilter("startDate", e.target.value)}
+            style={st.select}
+          />
+          <input
+            type="date"
+            value={endDate}
+            onChange={e => updateFilter("endDate", e.target.value)}
+            style={st.select}
+          />
           <button onClick={() => fetchActivities(true)} disabled={refreshing} style={st.btnOutline}>
             {refreshing ? "Refreshing…" : "Refresh"}
           </button>
@@ -219,7 +245,7 @@ const ActivityLog = () => {
               <span style={{ color: "#64748b", fontSize: 12 }}>Rows:</span>
               <select
                 value={perPage}
-                onChange={(e) => { setPerPage(Number(e.target.value)); setPage(1); }}
+                onChange={(e) => { setPageCfg({ page: 1, perPage: Number(e.target.value) }); }}
                 style={{ ...st.select, padding: "6px 10px", fontSize: 12 }}
               >
                 <option value={10}>10</option>

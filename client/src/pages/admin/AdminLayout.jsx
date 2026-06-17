@@ -503,9 +503,14 @@ const styles = {
     fontWeight: "500",
   },
   content: {
-    padding: "32px 40px",
-    maxWidth: "calc(100vw - 340px)",
+    // padding: "32px 40px",
+    // maxWidth: "calc(100vw - 340px)",
+    padding: "2rem",
     minWidth: 0,
+    dispay: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    alignItems: "center",
   },
   logoutBtn: {
     padding: "6px 14px",

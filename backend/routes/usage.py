@@ -173,6 +173,46 @@ def register_usage_routes(app):
             logger.error(f"Usage check error: {e}")
             return jsonify({"error": "Internal server error"}), 500
 
+    @app.route("/api/user/usage/monthly", methods=["GET"])
+    @token_required
+    def get_user_monthly_usage():
+        """Get current user's monthly token usage (all time, last 6 months)."""
+        try:
+            db = get_db()
+            cursor = db.cursor()
+
+            cursor.execute(
+                """
+                SELECT
+                    DATE_TRUNC('month', created_at) as month,
+                    SUM(total_tokens) as total_tokens,
+                    SUM(estimated_cost) as cost,
+                    COUNT(*) as requests
+                FROM token_usage
+                WHERE user_id = %s
+                GROUP BY DATE_TRUNC('month', created_at)
+                ORDER BY month DESC
+                LIMIT 6
+            """,
+                (g.user_id,),
+            )
+
+            return jsonify({
+                "monthly": [
+                    {
+                        "month": row["month"].strftime("%Y-%m"),
+                        "total_tokens": row["total_tokens"] or 0,
+                        "cost": round(row["cost"] or 0, 4),
+                        "requests": row["requests"],
+                    }
+                    for row in cursor.fetchall()
+                ]
+            }), 200
+
+        except Exception as e:
+            logger.error(f"User monthly usage error: {e}")
+            return jsonify({"error": "Failed to fetch usage"}), 500
+
     @app.route("/api/my-analysis", methods=["GET"])
     @token_required
     def get_my_analysis():

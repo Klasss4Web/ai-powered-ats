@@ -1,5 +1,14 @@
 import { useState, useEffect } from "react";
-import { AUTH_CONSTANTS, BASE_URL } from "../../constants/auth_constants";
+import { BASE_URL } from "../../constants/auth_constants";
+import fetchWithTimeout from "../../configs/fetch";
+import "./AdminDashboard.css";
+
+const PRESETS = [
+  { label: "Last 7 days", days: 7 },
+  { label: "Last 30 days", days: 30 },
+  { label: "Last 90 days", days: 90 },
+  { label: "Last 1 year", days: 365 },
+];
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState(null);
@@ -8,26 +17,28 @@ const AdminDashboard = () => {
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
 
-  useEffect(() => {
-    fetchDashboardStats();
-  }, []);
+  const [filters, setFilters] = useState({ preset: "7", startDate: "", endDate: "" });
+  const { preset, startDate, endDate } = filters;
+  const updateFilter = (k, v) => setFilters((f) => ({ ...f, [k]: v }));
+
+  const buildUrl = () => {
+    const params = new URLSearchParams();
+    if (startDate && endDate) {
+      params.append("start_date", startDate);
+      params.append("end_date", endDate);
+    } else {
+      params.append("days", preset);
+    }
+    return `${BASE_URL}/admin/dashboard?${params.toString()}`;
+  };
 
   const fetchDashboardStats = async (isRefresh = false) => {
-    if (isRefresh) {
-      setRefreshing(true);
-    }
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
     setError(null);
-    
     try {
-      const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
-      const response = await fetch(`${BASE_URL}/admin/dashboard`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch dashboard stats");
-      }
-
+      const response = await fetchWithTimeout(buildUrl());
+      if (!response.ok) throw new Error("Failed to fetch dashboard stats");
       const data = await response.json();
       setStats(data);
       setLastUpdated(new Date());
@@ -39,10 +50,15 @@ const AdminDashboard = () => {
     }
   };
 
+  useEffect(() => {
+    fetchDashboardStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preset, startDate, endDate]);
+
   if (loading) {
     return (
-      <div style={styles.loadingContainer}>
-        <div style={styles.spinner}></div>
+      <div className="admin-loading">
+        <div className="admin-spinner"></div>
         <p>Loading dashboard...</p>
       </div>
     );
@@ -50,20 +66,22 @@ const AdminDashboard = () => {
 
   if (error) {
     return (
-      <div style={styles.errorContainer}>
-        <p style={styles.errorText}>{error}</p>
-        <button onClick={fetchDashboardStats} style={styles.retryBtn}>
-          Retry
-        </button>
+      <div className="admin-loading">
+        <p className="admin-error-text">{error}</p>
+        <button onClick={fetchDashboardStats} className="admin-retry-btn">Retry</button>
       </div>
     );
   }
+
+  const periodLabel = startDate && endDate
+    ? `${startDate} → ${endDate}`
+    : PRESETS.find((p) => String(p.days) === preset)?.label || "Custom";
 
   const statCards = [
     {
       title: "Total Users",
       value: stats?.users?.total || 0,
-      subtitle: `+${stats?.users?.new_today || 0} today`,
+      subtitle: `+${stats?.users?.new_in_period || 0} in period`,
       icon: "users",
       color: "#38bdf8",
     },
@@ -75,9 +93,9 @@ const AdminDashboard = () => {
       color: "#fbbf24",
     },
     {
-      title: "Analyses Today",
-      value: stats?.analyses?.today || 0,
-      subtitle: `${stats?.analyses?.this_week || 0} this week`,
+      title: `Analyses (${periodLabel})`,
+      value: stats?.analyses?.period || 0,
+      subtitle: `${stats?.analyses?.total || 0} all time`,
       icon: "file-text",
       color: "#34d399",
     },
@@ -89,87 +107,125 @@ const AdminDashboard = () => {
       color: "#a78bfa",
     },
     {
-      title: "API Requests (24h)",
-      value: stats?.api?.requests_24h || 0,
-      subtitle: `${stats?.api?.errors_24h || 0} errors`,
+      title: `API Requests (${periodLabel})`,
+      value: stats?.api?.requests_period || 0,
+      subtitle: `${stats?.api?.errors_period || 0} errors`,
       icon: "activity",
       color: "#f472b6",
     },
     {
       title: "Avg Response Time",
       value: `${stats?.api?.avg_response_time_ms || 0}ms`,
-      subtitle: "Last 24 hours",
+      subtitle: "In selected period",
       icon: "clock",
       color: "#fb923c",
     },
     {
-      title: "Tokens Used Today",
-      value: formatNumber(stats?.tokens?.used_today || 0),
-      subtitle: `$${(stats?.tokens?.cost_today || 0).toFixed(4)} cost`,
+      title: `Tokens Used (${periodLabel})`,
+      value: formatNumber(stats?.tokens?.used_period || 0),
+      subtitle: `$${(stats?.tokens?.cost_period || 0).toFixed(4)} cost`,
       icon: "cpu",
       color: "#22d3ee",
     },
     {
-      title: "New Users (Week)",
-      value: stats?.users?.new_this_week || 0,
-      subtitle: "Last 7 days",
+      title: `New Users (${periodLabel})`,
+      value: stats?.users?.new_in_period || 0,
+      subtitle: "In selected period",
       icon: "user-plus",
       color: "#818cf8",
     },
   ];
 
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>
-        <h1 style={styles.title}>Dashboard Overview</h1>
-        <p style={styles.subtitle}>Welcome back! Here's what's happening with your app.</p>
+    <div className="admin-container">
+      <div className="admin-header-row">
+        <div>
+          <h1 className="admin-title">Dashboard Overview</h1>
+          <p className="admin-subtitle">Welcome back! Here's what's happening with your app.</p>
+        </div>
+        <div className="admin-controls">
+          <select
+            value={preset}
+            onChange={(e) => {
+              updateFilter("preset", e.target.value);
+              updateFilter("startDate", "");
+              updateFilter("endDate", "");
+            }}
+            className="admin-select"
+          >
+            {PRESETS.map((p) => (
+              <option key={p.days} value={p.days}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+          <span style={{ color: "#64748b", fontSize: "13px" }}>or</span>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => updateFilter("startDate", e.target.value)}
+            className="admin-date-input"
+          />
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => updateFilter("endDate", e.target.value)}
+            className="admin-date-input"
+          />
+          <button
+            onClick={() => fetchDashboardStats(true)}
+            disabled={refreshing}
+            className="admin-refresh-btn"
+            style={{ opacity: refreshing ? 0.7 : 1 }}
+          >
+            {refreshing ? "Refreshing..." : "Refresh"}
+          </button>
+        </div>
       </div>
 
-      {/* Stats Grid */}
-      <div style={styles.statsGrid}>
+      <div className="admin-stats-grid">
         {statCards.map((card, index) => (
-          <div key={index} style={styles.statCard}>
-            <div style={styles.statCardHeader}>
-              <div style={{ ...styles.statIcon, backgroundColor: `${card.color}20`, color: card.color }}>
+          <div key={index} className="admin-stat-card">
+            <div className="admin-stat-card-header">
+              <div className="admin-stat-icon" style={{ backgroundColor: `${card.color}20`, color: card.color }}>
                 {getIcon(card.icon)}
               </div>
-              <span style={styles.statTitle}>{card.title}</span>
+              <span className="admin-stat-title">{card.title}</span>
             </div>
-            <div style={styles.statValue}>{card.value}</div>
-            <div style={styles.statSubtitle}>{card.subtitle}</div>
+            <div className="admin-stat-value">{card.value}</div>
+            <div className="admin-stat-subtitle">{card.subtitle}</div>
           </div>
         ))}
       </div>
 
-      {/* Quick Stats Row */}
-      <div style={styles.quickStatsRow}>
-        <div style={styles.quickStatCard}>
-          <h3 style={styles.quickStatTitle}>User Distribution</h3>
-          <div style={styles.distributionBars}>
-            <div style={styles.distributionItem}>
-              <div style={styles.distributionLabel}>
+      <div className="admin-quick-row">
+        <div className="admin-quick-card">
+          <h3 className="admin-quick-title">User Distribution</h3>
+          <div className="admin-distribution-list">
+            <div className="admin-distribution-item">
+              <div className="admin-distribution-label">
                 <span>Free Users</span>
                 <span>{stats?.users?.by_subscription?.free || 0}</span>
               </div>
-              <div style={styles.progressBar}>
+              <div className="admin-progress-bar">
                 <div
+                  className="admin-progress-fill"
                   style={{
-                    ...styles.progressFill,
                     width: `${((stats?.users?.by_subscription?.free || 0) / (stats?.users?.total || 1)) * 100}%`,
                     backgroundColor: "#64748b",
                   }}
                 ></div>
               </div>
             </div>
-            <div style={styles.distributionItem}>
-              <div style={styles.distributionLabel}>
+            <div className="admin-distribution-item">
+              <div className="admin-distribution-label">
                 <span>Premium Users</span>
                 <span>{stats?.users?.by_subscription?.premium || 0}</span>
               </div>
-              <div style={styles.progressBar}>
+              <div className="admin-progress-bar">
                 <div
+                  className="admin-progress-fill"
                   style={{
-                    ...styles.progressFill,
                     width: `${((stats?.users?.by_subscription?.premium || 0) / (stats?.users?.total || 1)) * 100}%`,
                     backgroundColor: "#fbbf24",
                   }}
@@ -179,42 +235,32 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        <div style={styles.quickStatCard}>
-          <h3 style={styles.quickStatTitle}>API Health</h3>
-          <div style={styles.healthGrid}>
-            <div style={styles.healthItem}>
-              <span style={styles.healthLabel}>Error Rate</span>
-              <span style={{
-                ...styles.healthValue,
-                color: (stats?.api?.errors_24h || 0) / (stats?.api?.requests_24h || 1) > 0.05 ? "#ef4444" : "#34d399"
-              }}>
-                {stats?.api?.requests_24h
-                  ? (((stats?.api?.errors_24h || 0) / stats.api.requests_24h) * 100).toFixed(2)
+        <div className="admin-quick-card">
+          <h3 className="admin-quick-title">API Health</h3>
+          <div className="admin-health-grid">
+            <div className="admin-health-item">
+              <span className="admin-health-label">Error Rate</span>
+              <span
+                className="admin-health-value"
+                style={{
+                  color: (stats?.api?.errors_period || 0) / (stats?.api?.requests_period || 1) > 0.05 ? "#ef4444" : "#34d399",
+                }}
+              >
+                {stats?.api?.requests_period
+                  ? (((stats?.api?.errors_period || 0) / stats.api.requests_period) * 100).toFixed(2)
                   : 0}%
               </span>
             </div>
-            <div style={styles.healthItem}>
-              <span style={styles.healthLabel}>Uptime</span>
-              <span style={{ ...styles.healthValue, color: "#34d399" }}>99.9%</span>
+            <div className="admin-health-item">
+              <span className="admin-health-label">Uptime</span>
+              <span className="admin-health-value" style={{ color: "#34d399" }}>99.9%</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Refresh Button */}
-      <div style={styles.refreshContainer}>
-        <button 
-          onClick={() => fetchDashboardStats(true)} 
-          disabled={refreshing}
-          style={{
-            ...styles.refreshBtn,
-            opacity: refreshing ? 0.7 : 1,
-            cursor: refreshing ? "not-allowed" : "pointer",
-          }}
-        >
-          {refreshing ? "Refreshing..." : "Refresh Data"}
-        </button>
-        <span style={styles.lastUpdated}>
+      <div className="admin-refresh-row">
+        <span className="admin-last-updated">
           Last updated: {lastUpdated ? lastUpdated.toLocaleTimeString() : "Never"}
         </span>
       </div>
@@ -290,187 +336,6 @@ const getIcon = (iconName) => {
     ),
   };
   return icons[iconName] || icons.activity;
-};
-
-const styles = {
-  container: {
-    maxWidth: "1400px",
-    margin: "0 auto",
-  },
-  loadingContainer: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: "400px",
-    color: "#94a3b8",
-  },
-  spinner: {
-    width: "40px",
-    height: "40px",
-    border: "3px solid rgba(56, 189, 248, 0.3)",
-    borderTopColor: "#38bdf8",
-    borderRadius: "50%",
-    animation: "spin 1s linear infinite",
-    marginBottom: "16px",
-  },
-  errorContainer: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: "400px",
-  },
-  errorText: {
-    color: "#ef4444",
-    marginBottom: "16px",
-  },
-  retryBtn: {
-    padding: "10px 20px",
-    backgroundColor: "#38bdf8",
-    color: "#fff",
-    border: "none",
-    borderRadius: "8px",
-    cursor: "pointer",
-  },
-  header: {
-    marginBottom: "32px",
-  },
-  title: {
-    color: "#e2e8f0",
-    fontSize: "28px",
-    fontWeight: "600",
-    margin: 0,
-  },
-  subtitle: {
-    color: "#94a3b8",
-    fontSize: "14px",
-    marginTop: "8px",
-  },
-  statsGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-    gap: "20px",
-    marginBottom: "32px",
-  },
-  statCard: {
-    backgroundColor: "#1e293b",
-    borderRadius: "12px",
-    padding: "20px",
-    border: "1px solid rgba(148, 163, 184, 0.1)",
-  },
-  statCardHeader: {
-    display: "flex",
-    alignItems: "center",
-    gap: "12px",
-    marginBottom: "16px",
-  },
-  statIcon: {
-    width: "40px",
-    height: "40px",
-    borderRadius: "10px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  statTitle: {
-    color: "#94a3b8",
-    fontSize: "13px",
-    fontWeight: "500",
-  },
-  statValue: {
-    color: "#e2e8f0",
-    fontSize: "28px",
-    fontWeight: "600",
-    marginBottom: "4px",
-  },
-  statSubtitle: {
-    color: "#64748b",
-    fontSize: "12px",
-  },
-  quickStatsRow: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-    gap: "20px",
-    marginBottom: "32px",
-  },
-  quickStatCard: {
-    backgroundColor: "#1e293b",
-    borderRadius: "12px",
-    padding: "24px",
-    border: "1px solid rgba(148, 163, 184, 0.1)",
-  },
-  quickStatTitle: {
-    color: "#e2e8f0",
-    fontSize: "16px",
-    fontWeight: "600",
-    marginBottom: "20px",
-    margin: "0 0 20px 0",
-  },
-  distributionBars: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "16px",
-  },
-  distributionItem: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "8px",
-  },
-  distributionLabel: {
-    display: "flex",
-    justifyContent: "space-between",
-    color: "#94a3b8",
-    fontSize: "13px",
-  },
-  progressBar: {
-    height: "8px",
-    backgroundColor: "rgba(148, 163, 184, 0.1)",
-    borderRadius: "4px",
-    overflow: "hidden",
-  },
-  progressFill: {
-    height: "100%",
-    borderRadius: "4px",
-    transition: "width 0.3s ease",
-  },
-  healthGrid: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "20px",
-  },
-  healthItem: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "8px",
-  },
-  healthLabel: {
-    color: "#94a3b8",
-    fontSize: "13px",
-  },
-  healthValue: {
-    fontSize: "24px",
-    fontWeight: "600",
-  },
-  refreshContainer: {
-    display: "flex",
-    alignItems: "center",
-    gap: "16px",
-  },
-  refreshBtn: {
-    padding: "10px 20px",
-    backgroundColor: "transparent",
-    color: "#38bdf8",
-    border: "1px solid #38bdf8",
-    borderRadius: "8px",
-    cursor: "pointer",
-    fontSize: "14px",
-    transition: "all 0.2s ease",
-  },
-  lastUpdated: {
-    color: "#64748b",
-    fontSize: "12px",
-  },
 };
 
 export default AdminDashboard;
