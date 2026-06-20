@@ -307,8 +307,8 @@ const Subscriptions = () => {
         <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
             <span style={{ color: "#94a3b8", fontSize: 13 }}>
-              Showing <strong style={{ color: "#e2e8f0" }}>{(page - 1) * perPage + 1}</strong> –{" "}
-              <strong style={{ color: "#e2e8f0" }}>{Math.min(page * perPage, pagination.total)}</strong> of{" "}
+              Showing <strong style={{ color: "#e2e8f0" }}>{Math.max(1, ((Number(page) || 1) - 1) * (Number(perPage) || 20) + 1)}</strong> –{" "}
+              <strong style={{ color: "#e2e8f0" }}>{Math.min((Number(page) || 1) * (Number(perPage) || 20), pagination.total)}</strong> of{" "}
               <strong style={{ color: "#e2e8f0" }}>{pagination.total}</strong> records
             </span>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

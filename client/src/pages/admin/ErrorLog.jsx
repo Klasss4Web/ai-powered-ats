@@ -576,17 +576,17 @@ const ErrorLog = () => {
             {/* Row count + per-page selector */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
               <span style={{ color: "#94a3b8", fontSize: 13 }}>
-                Showing{" "}
+                {"Showing "}
                 <strong style={{ color: "#e2e8f0" }}>
-                  {(page - 1) * perPage + 1}
-                </strong>{" "}
-                –{" "}
+                  {Math.max(1, ((Number(page) || 1) - 1) * (Number(perPage) || 25) + 1)}
+                </strong>
+                {" – "}
                 <strong style={{ color: "#e2e8f0" }}>
-                  {Math.min(page * perPage, data.pagination.total)}
-                </strong>{" "}
-                of{" "}
-                <strong style={{ color: "#e2e8f0" }}>{data.pagination.total}</strong>{" "}
-                errors
+                  {Math.min((Number(page) || 1) * (Number(perPage) || 25), data.pagination.total)}
+                </strong>
+                {" of "}
+                <strong style={{ color: "#e2e8f0" }}>{data.pagination.total}</strong>
+                {" errors"}
               </span>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ color: "#64748b", fontSize: 12 }}>Rows per page:</span>

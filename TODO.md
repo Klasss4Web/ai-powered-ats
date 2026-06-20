@@ -39,6 +39,65 @@
 
 ---
 
+## CV Builder
+
+This is the plan to add a proper professional CV builder powered by LLM analysis feedback.
+
+### Phase 1: Foundation (In Progress)
+- [ ] **Database: Add cv_profiles table**
+  - `cv_profiles(id, user_id, title, profile_data JSONB, template_id, is_master, target_job_description, tailored_from_id, created_at, updated_at)`
+  - Initialize in `backend/db/database.py`
+
+- [ ] **Backend: Add CV profile CRUD endpoints**
+  - `POST /api/cv/profiles` — create new CV profile
+  - `GET /api/cv/profiles` — list user's profiles
+  - `GET /api/cv/profiles/:id` — retrieve full profile
+  - `PUT /api/cv/profiles/:id` — update profile sections (PATCH-style merge)
+  - `DELETE /api/cv/profiles/:id` — delete profile
+  - Register in `resume.py` or new `cv.py` route module
+
+- [ ] **Backend: Parse uploaded resume into structured profile_data**
+  - `POST /api/cv/parse`
+  - Reuse LLM to extract Contact, Summary, Experience, Education, Skills, Certifications, Projects into structured JSONB
+
+- [ ] **Frontend: /cv-builder route**
+  - Register route in `App.jsx`
+  - Add `CVBuilderDashboard.jsx` — grid/list of user's CVs + "Create New"
+  - Add `CVBuilderEditor.jsx` — basic section editor (left nav, center form, right preview)
+
+- [ ] **Frontend: CV Section Editor**
+  - Reusable section component for Contact, Summary, Experience, Education, Skills, Certifications, Projects
+  - Manage nested arrays (experience, education) with add/remove
+  - Save draft to backend on change
+
+- [ ] **Frontend: Live Preview**
+  - One hardcoded template (Modern)
+  - Pure React component receiving `profile_data`
+  - External CSS file (`ModernTemplate.css`) per AGENTS.md
+
+- [ ] **Import from Saved Resumes**
+  - On dashboard, "Import from Saved Resume" option calls `/api/cv/parse` then creates a profile
+
+### Phase 2: Templates & Export
+- [ ] **Add 2 more React template components (Classic, Minimal)**
+- [ ] **Template selector modal**
+- [ ] **Client-side PDF via react-to-print** (quick win)
+- [ ] **External CSS files per template**
+
+### Phase 3: AI Suggestions Engine
+- [ ] **Backend: `/api/cv/analyze`** — wrap existing matcher + map suggestions to sections
+- [ ] **SuggestionPanel component** with "Apply" buttons per field
+- [ ] **Section-level highlighting in editor**
+- [ ] **Usage limit integration** (new usage types: `cv_analysis`, `cv_tailor`)
+
+### Phase 4: Polish & Server PDF
+- [ ] **Replace client PDF with Puppeteer/WeasyPrint server-side**
+- [ ] **DOCX export endpoint**
+- [ ] **`/api/cv/tailor` workflow** (clone master + auto-optimize)
+- [ ] **Link cv_profile_id to Job Tracker applications**
+
+---
+
 ## Medium Term (If Users Still Report Timeouts)
 
 - [ ] **Implement async fallback for `/api/match`**

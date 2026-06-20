@@ -105,5 +105,8 @@ PREMIUM_TIERS = {'premium', 'pro'}
 # SendGrid Email Configuration
 SENDGRID_API_KEY = os.getenv('SENDGRID_API_KEY')
 # The verified sender address in your SendGrid account
-SENDGRID_FROM_EMAIL = os.getenv('SENDGRID_FROM_EMAIL', 'noreply@yourdomain.com')
+SENDGRID_FROM_EMAIL = os.getenv('SENDGRID_FROM_EMAIL', '[EMAIL_REDACTED]')
 SENDGRID_FROM_NAME = os.getenv('SENDGRID_FROM_NAME', 'ATS Matcher')
+
+# Frontend URL (used for password reset links, etc.)
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')

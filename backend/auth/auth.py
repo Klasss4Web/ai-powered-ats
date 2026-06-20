@@ -8,12 +8,15 @@ from logger.app_logger import logger, log_auth_event
 import datetime
 import secrets
 import bcrypt
+from dotenv import load_dotenv
 from functools import wraps
 from flask import request, jsonify, g
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from db.database import get_db
-from config import JWT_SECRET_KEY
+from config import JWT_SECRET_KEY, SENDGRID_API_KEY, SENDGRID_FROM_EMAIL, SENDGRID_FROM_NAME, FRONTEND_URL
+
+load_dotenv()
 
 # ---------------------------------------------------------------------------
 # HIGH-2: Rate limiter — applied per remote IP address.
@@ -327,10 +330,37 @@ def register_auth_routes(app):
             )
             db.commit()
 
-            # HIGH-10: Never log the raw reset token — it can be used to take over accounts.
-            # TODO: Send the token via email using SendGrid/SES.
-            # The reset URL would be: {FRONTEND_URL}/reset-password?token={reset_token}
-            logger.info(f"Password reset requested for user {user['id']} — token generated (not emailed yet)")
+            # Send reset email via SendGrid (best-effort; don't leak failures to caller)
+            if SENDGRID_API_KEY and SENDGRID_FROM_EMAIL:
+                try:
+                    from sendgrid import SendGridAPIClient
+                    from sendgrid.helpers.mail import Mail
+
+                    reset_url = f"{FRONTEND_URL}/reset-password?token={reset_token}"
+
+                    message = Mail(
+                        from_email=SENDGRID_FROM_EMAIL,
+                        to_emails=email,
+                        subject="Reset your ATS Matcher password",
+                        html_content=f"""
+                            <p>Hi,</p>
+                            <p>You requested a password reset for your ATS Matcher account.</p>
+                            <p>Click the link below to reset your password:</p>
+                            <p><a href="{reset_url}">{reset_url}</a></p>
+                            <p>This link expires in 1 hour.</p>
+                            <p>If you didn't request this, you can safely ignore this email.</p>
+                        """,
+                    )
+                    sg = SendGridAPIClient(SENDGRID_API_KEY)
+                    sg.send(message)
+                    logger.info(f"Password reset email sent to {email} (user {user['id']})")
+                except Exception as mail_err:
+                    logger.error(f"Failed to send reset email to {email}: {mail_err}")
+            else:
+                logger.warning(
+                    f"Password reset requested for {email} but SendGrid is not configured. "
+                    f"Reset URL: {FRONTEND_URL}/reset-password?token={reset_token}"
+                )
 
             return jsonify(
                 {"message": "If the email exists, a reset link has been sent."}
