@@ -94,6 +94,8 @@ const RecruitersView = () => {
   // Initial page loading state
   const [initialLoading, setInitialLoading] = useState(true);
 
+  const [loadingSessionDetail, setLoadingSessionDetail] = useState(false);
+
   // Background job polling state
   const [activeJobId, setActiveJobId] = useState(null);
   const [jobProgress, setJobProgress] = useState({ progress: 0, total: 0, status: "" });
@@ -337,6 +339,7 @@ const RecruitersView = () => {
   };
 
   const loadSession = async (sessionId) => {
+    setLoadingSessionDetail(true);
     try {
       const token = localStorage.getItem(AUTH_CONSTANTS.TOKEN_KEY);
       const response = await fetch(
@@ -360,6 +363,8 @@ const RecruitersView = () => {
     } catch (error) {
       console.error("Failed to load session:", error);
       showAlert("Failed to load session.", "error");
+    } finally {
+      setLoadingSessionDetail(false);
     }
   };
 
@@ -906,15 +911,9 @@ const RecruitersView = () => {
               </div>
 
               {loadingSessions ? (
-                <p
-                  style={{
-                    color: "#666",
-                    padding: "20px",
-                    textAlign: "center",
-                  }}
-                >
-                  Loading...
-                </p>
+                <div style={{ padding: "30px 0", textAlign: "center" }}>
+                  <AnimatedLoader text="Loading sessions" showSpinner />
+                </div>
               ) : sessions.length === 0 ? (
                 <p
                   style={{
@@ -1076,6 +1075,12 @@ const RecruitersView = () => {
           </div>
         ) : (
           <div style={styles.mainContent}>
+            {/* Session Loading Overlay */}
+            {loadingSessionDetail && (
+              <div style={styles.sessionLoadingOverlay}>
+                <AnimatedLoader text="Loading session" showSpinner />
+              </div>
+            )}
             {/* Input Section */}
             <div style={styles.inputSection}>
               {/* Job Title */}
@@ -2041,9 +2046,11 @@ const RecruitersView = () => {
                 </div>
               </div>
 
-              {/* Templates List */}
+              {/* Email Templates List */}
               {loadingTemplates ? (
-                <p style={{ color: "#666", textAlign: "center" }}>Loading...</p>
+                <div style={{ padding: "20px 0", textAlign: "center" }}>
+                  <AnimatedLoader text="Loading templates" showSpinner />
+                </div>
               ) : emailTemplates.length === 0 ? (
                 <p style={{ color: "#666", textAlign: "center" }}>
                   No templates yet. Create one above.
@@ -2342,10 +2349,12 @@ const RecruitersView = () => {
 // Styles
 const styles = {
   initialLoaderContainer: {
+    position: "fixed",
+    inset: 0,
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
-    minHeight: "100vh",
+    zIndex: 9999,
     backgroundColor: "#f4f7fa",
   },
   pageContainer: {
@@ -2878,6 +2887,20 @@ const styles = {
     justifyContent: "center",
     alignItems: "center",
     zIndex: 1002,
+  },
+  sessionLoadingOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(244, 247, 250, 0.85)",
+    backdropFilter: "blur(2px)",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
+    borderRadius: "8px",
   },
   jobProgressCard: {
     backgroundColor: "#fff",

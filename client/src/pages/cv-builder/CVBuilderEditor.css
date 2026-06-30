@@ -1,0 +1,279 @@
+.cv-builder-editor {
+  display: flex;
+  height: calc(100vh - 64px);
+  background-color: #f9fafb;
+}
+
+.cv-builder-editor__sidebar {
+  width: 200px;
+  min-width: 200px;
+  background-color: #ffffff;
+  border-right: 1px solid #e5e7eb;
+  padding: 16px;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.cv-builder-editor__sidebar-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 12px;
+}
+
+.cv-builder-editor__nav-item {
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background-color: transparent;
+  color: #374151;
+  font-size: 0.9rem;
+  cursor: pointer;
+  margin-bottom: 4px;
+  transition: background-color 0.15s ease;
+}
+
+.cv-builder-editor__nav-item:hover {
+  background-color: #f3f4f6;
+}
+
+.cv-builder-editor__nav-item--active {
+  background-color: #eff6ff;
+  color: #1e40af;
+  font-weight: 600;
+}
+
+.cv-builder-editor__form-panel {
+  flex: 1;
+  min-width: 380px;
+  max-width: 520px;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.cv-builder-editor__form-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.cv-builder-editor__form-title {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+}
+
+.cv-builder-editor__save-btn {
+  padding: 10px 20px;
+  background-color: #1e40af;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.cv-builder-editor__save-btn:hover {
+  background-color: #1e3a8a;
+}
+
+.cv-builder-editor__save-btn:disabled {
+  background-color: #93c5fd;
+  cursor: not-allowed;
+}
+
+.cv-builder-editor__save-btn--secondary {
+  background-color: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+}
+
+.cv-builder-editor__save-btn--secondary:hover {
+  background-color: #e5e7eb;
+}
+
+.cv-builder-editor__section-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 16px;
+}
+
+.cv-builder-editor__field {
+  margin-bottom: 16px;
+}
+
+.cv-builder-editor__label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.cv-builder-editor__input,
+.cv-builder-editor__textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.cv-builder-editor__input:focus,
+.cv-builder-editor__textarea:focus {
+  outline: none;
+  border-color: #1e40af;
+  box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.1);
+}
+
+.cv-builder-editor__textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+
+.cv-builder-editor__array-item {
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.cv-builder-editor__array-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.cv-builder-editor__array-title {
+  font-weight: 600;
+  color: #374151;
+}
+
+.cv-builder-editor__remove-btn {
+  padding: 6px 12px;
+  background-color: #fef2f2;
+  color: #991b1b;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.cv-builder-editor__remove-btn:hover {
+  background-color: #fee2e2;
+}
+
+.cv-builder-editor__add-btn {
+  padding: 8px 16px;
+  background-color: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  margin-top: 8px;
+}
+
+.cv-builder-editor__add-btn:hover {
+  background-color: #e5e7eb;
+}
+
+.cv-builder-editor__sub-add-btn {
+  padding: 4px 10px;
+  background-color: #eff6ff;
+  color: #1e40af;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  margin-top: 6px;
+}
+
+.cv-builder-editor__sub-add-btn:hover {
+  background-color: #dbeafe;
+}
+
+.cv-builder-editor__preview-panel {
+  flex: 1.6;
+  min-width: 520px;
+  background-color: #e5e7eb;
+  border-left: 1px solid #d1d5db;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.cv-builder-editor__preview-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 10px;
+}
+
+.cv-builder-editor__preview-wrapper {
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+
+.cv-builder-editor__error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  animation: slideDown 0.2s ease;
+}
+
+.cv-builder-editor__error-text {
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.cv-builder-editor__error-close {
+  background: none;
+  border: none;
+  color: #991b1b;
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.cv-builder-editor__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #6b7280;
+}

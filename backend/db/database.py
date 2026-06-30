@@ -277,6 +277,27 @@ def init_db(app):
             """)
 
             # -------------------------
+            # CV PROFILES (CV Builder)
+            # -------------------------
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS cv_profiles (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    title TEXT NOT NULL,
+                    profile_data JSONB NOT NULL DEFAULT '{}',
+                    template_id INTEGER DEFAULT 1,
+                    is_master BOOLEAN DEFAULT false,
+                    target_job_description TEXT,
+                    tailored_from_id INTEGER REFERENCES cv_profiles(id) ON DELETE SET NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            cur.execute(
+                "CREATE INDEX IF NOT EXISTS idx_cv_profiles_user_id ON cv_profiles(user_id)"
+            )
+
+            # -------------------------
             # SCREENING SESSIONS (Recruiter Feature)
             # -------------------------
             cur.execute("""

@@ -1,0 +1,310 @@
+.cv-builder-dashboard {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.cv-builder-dashboard__hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+  border-radius: 16px;
+  padding: 32px 36px;
+  margin-bottom: 32px;
+  color: #ffffff;
+  box-shadow: 0 10px 30px rgba(30, 58, 138, 0.25);
+}
+
+.cv-builder-dashboard__hero-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.cv-builder-dashboard__hero-icon {
+  font-size: 2.4rem;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 14px;
+  padding: 10px;
+  line-height: 1;
+}
+
+.cv-builder-dashboard__hero-title {
+  font-size: 1.8rem;
+  font-weight: 700;
+  margin: 0 0 4px 0;
+  color: #ffffff;
+}
+
+.cv-builder-dashboard__hero-subtitle {
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.85);
+  margin: 0;
+}
+
+.cv-builder-dashboard__hero-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.cv-builder-dashboard__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 22px;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cv-builder-dashboard__btn-icon {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.cv-builder-dashboard__btn--primary {
+  background-color: #ffffff;
+  color: #1e40af;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.cv-builder-dashboard__btn--primary:hover {
+  background-color: #f3f4f6;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.cv-builder-dashboard__btn--secondary {
+  background-color: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.cv-builder-dashboard__btn--secondary:hover {
+  background-color: rgba(255, 255, 255, 0.22);
+}
+
+.cv-builder-dashboard__btn--danger {
+  background-color: #dc2626;
+  color: #ffffff;
+}
+
+.cv-builder-dashboard__btn--danger:hover {
+  background-color: #b91c1c;
+}
+
+.cv-builder-dashboard__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.cv-builder-dashboard__card {
+  background-color: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 20px;
+  cursor: pointer;
+  transition: box-shadow 0.2s ease, transform 0.15s ease;
+  position: relative;
+}
+
+.cv-builder-dashboard__card:hover {
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+.cv-builder-dashboard__card-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 8px 0;
+}
+
+.cv-builder-dashboard__card-meta {
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin-bottom: 12px;
+}
+
+.cv-builder-dashboard__card-badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cv-builder-dashboard__badge {
+  font-size: 0.75rem;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-weight: 500;
+}
+
+.cv-builder-dashboard__badge--template {
+  background-color: #ecfdf5;
+  color: #047857;
+}
+
+.cv-builder-dashboard__badge--master {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.cv-builder-dashboard__badge--tailored {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.cv-builder-dashboard__card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.cv-builder-dashboard__card-btn {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.cv-builder-dashboard__card-btn--edit {
+  background-color: #eff6ff;
+  color: #1e40af;
+}
+
+.cv-builder-dashboard__card-btn--edit:hover {
+  background-color: #dbeafe;
+}
+
+.cv-builder-dashboard__card-btn--delete {
+  background-color: #fef2f2;
+  color: #991b1b;
+}
+
+.cv-builder-dashboard__card-btn--delete:hover {
+  background-color: #fee2e2;
+}
+
+.cv-builder-dashboard__error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  padding: 12px 16px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  cursor: pointer;
+  animation: slideDown 0.2s ease;
+}
+
+.cv-builder-dashboard__error-text {
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.cv-builder-dashboard__error-close {
+  background: none;
+  border: none;
+  color: #991b1b;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.cv-builder-dashboard__empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: #6b7280;
+}
+
+.cv-builder-dashboard__empty-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.cv-builder-dashboard__modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.cv-builder-dashboard__modal {
+  background-color: #ffffff;
+  border-radius: 12px;
+  padding: 24px;
+  width: 100%;
+  max-width: 480px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+
+.cv-builder-dashboard__modal--compact {
+  max-width: 380px;
+  text-align: center;
+}
+
+.cv-builder-dashboard__modal-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 12px 0;
+}
+
+.cv-builder-dashboard__modal-text {
+  font-size: 0.95rem;
+  color: #4b5563;
+  margin: 0 0 20px 0;
+  line-height: 1.5;
+}
+
+.cv-builder-dashboard__modal-body {
+  margin-bottom: 20px;
+}
+
+.cv-builder-dashboard__input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  margin-bottom: 12px;
+  box-sizing: border-box;
+}
+
+.cv-builder-dashboard__input:focus {
+  outline: none;
+  border-color: #1e40af;
+  box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.1);
+}
+
+.cv-builder-dashboard__modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}

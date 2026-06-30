@@ -4,22 +4,18 @@ Resume processing, generation, and matching for ATS Matcher Backend (PostgreSQL)
 
 import json
 import re
-import time
-from logger.app_logger import logger, log_llm_call
 import os
 import datetime
 import PyPDF2
-from dotenv import load_dotenv
 from io import BytesIO
 from docx import Document
 from flask import jsonify, g, request, send_file
 from db.database import get_db
 from routes.usage import check_usage_limit, record_usage
 from config import MAX_SAVED_RESUMES, MAX_BATCH_RESUMES, RECRUITER_TIERS, PREMIUM_TIERS
-from openai import OpenAI
+from services.llm_service import llm_call, model
+from logger.app_logger import logger
 from jobs.worker import submit_job
-
-load_dotenv()
 
 
 # ---------------------------
@@ -48,132 +44,6 @@ def validate_resume_file(file):
         return False, "File does not appear to be a valid PDF"
 
     return True, None
-
-
-# ---------------------------
-# LLM INITIALIZATION
-# ---------------------------
-
-MODEL = "openai/gpt-oss-120b"
-
-try:
-    api_key = os.getenv("OPENROUTER_API_KEY")
-
-    if api_key:
-        model = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=api_key,
-            timeout=60.0,
-            max_retries=3,
-        )
-        logger.info(f"LLM client initialized successfully with model: {MODEL}")
-    else:
-        model = None
-        logger.warning("OPENROUTER_API_KEY not set - LLM features disabled")
-
-except Exception as e:
-    logger.error(f"ERROR initializing LLM client: {e}")
-    model = None
-
-
-# ---------------------------
-# LLM CALL WRAPPER
-# ---------------------------
-def llm_call(prompt, endpoint="unknown"):
-    if not model:
-        logger.error(f"LLM call failed for {endpoint}: model not initialized")
-        raise RuntimeError("LLM model not initialized")
-
-    start_time = time.time()
-    logger.info(f"LLM call started: {endpoint}")
-
-    try:
-        response = model.chat.completions.create(
-            messages=[{"role": "user", "content": prompt}],
-            model=MODEL,
-            timeout=70,
-        )
-
-        duration_ms = (time.time() - start_time) * 1000
-
-        # Track token usage
-        usage = response.usage
-        prompt_tokens = usage.prompt_tokens if usage else 0
-        completion_tokens = usage.completion_tokens if usage else 0
-        total_tokens = usage.total_tokens if usage else 0
-
-        if usage:
-            record_token_usage(
-                endpoint=endpoint,
-                model=MODEL,
-                prompt_tokens=prompt_tokens,
-                completion_tokens=completion_tokens,
-                total_tokens=total_tokens,
-            )
-
-        log_llm_call(
-            endpoint=endpoint,
-            model=MODEL,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
-            total_tokens=total_tokens,
-            duration_ms=round(duration_ms, 2),
-            success=True,
-        )
-
-        return response.choices[0].message.content
-
-    except Exception as e:
-        duration_ms = (time.time() - start_time) * 1000
-        log_llm_call(
-            endpoint=endpoint,
-            model=MODEL,
-            duration_ms=round(duration_ms, 2),
-            success=False,
-            error=str(e),
-        )
-        raise
-
-
-def record_token_usage(endpoint, model, prompt_tokens, completion_tokens, total_tokens):
-    """Record token usage to the database."""
-# OpenRouter pricing for openai/gpt-oss-120b (per 1M tokens)
-# Prompt: $0.15, Completion: $0.60
-COST_PER_1K_PROMPT = 0.00015      # $0.15 / 1000
-COST_PER_1K_COMPLETION = 0.0006   # $0.60 / 1000
-
-def record_token_usage(endpoint, model, prompt_tokens, completion_tokens, total_tokens):
-    """Record token usage to the database with accurate OpenRouter pricing."""
-    estimated_cost = (prompt_tokens / 1000 * COST_PER_1K_PROMPT) + (
-        completion_tokens / 1000 * COST_PER_1K_COMPLETION
-    )
-
-    try:
-        db = get_db()
-        cursor = db.cursor()
-
-        # Get user_id from Flask g if available
-        user_id = getattr(g, "user_id", None)
-
-        cursor.execute(
-            """
-            INSERT INTO token_usage (user_id, endpoint, model, prompt_tokens, completion_tokens, total_tokens, estimated_cost)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """,
-            (
-                user_id,
-                endpoint,
-                model,
-                prompt_tokens,
-                completion_tokens,
-                total_tokens,
-                estimated_cost,
-            ),
-        )
-
-        db.commit()
-    except Exception as e:
-        logger.error(f"Error recording token usage: {e}")
 
 
 # ---------------------------

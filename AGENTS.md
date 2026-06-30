@@ -18,3 +18,9 @@
 - Keep components small and focused.
 - Prefer functional components with hooks.
 - Run existing tests after changes.
+
+## Backend Architecture
+
+- Shared business logic that is used by multiple route modules should live in `backend/services/` (e.g., `llm_service.py`, `file_service.py`).
+- Route modules (`backend/routes/*.py`) should import shared utilities from `backend/services/` rather than from each other to avoid tight coupling.
+- When adding new domain features, create a dedicated route module and register it via a `register_*_routes(app)` function in `backend/app.py`.

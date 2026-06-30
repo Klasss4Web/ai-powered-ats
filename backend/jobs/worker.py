@@ -89,9 +89,8 @@ def _extract_text_from_pdf(file_stream):
 
 
 def _llm_call(prompt, endpoint="/api/batch-match"):
-    """Re-import LLM call logic."""
+    """Delegate to standalone OpenAI call for background workers."""
     try:
-        from routes.resume import llm_call as _llm
         return _llm_call_with_openai(prompt)
     except Exception:
         # Fallback: try to use whatever LLM is available

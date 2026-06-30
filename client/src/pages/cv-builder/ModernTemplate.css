@@ -1,0 +1,222 @@
+.modern-template {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  color: #1f2937;
+  background-color: #ffffff;
+  padding: 32px;
+  line-height: 1.5;
+}
+
+.modern-template__header {
+  border-bottom: 2px solid #1e40af;
+  padding-bottom: 16px;
+  margin-bottom: 24px;
+}
+
+.modern-template__name {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1e3a8a;
+  margin: 0 0 4px 0;
+}
+
+.modern-template__job-title {
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: #4b5563;
+  margin-bottom: 10px;
+}
+
+.modern-template__contact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 0.9rem;
+  color: #4b5563;
+}
+
+.modern-template__contact-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.modern-template__link {
+  color: #1e40af;
+  text-decoration: none;
+}
+
+.modern-template__link:hover {
+  text-decoration: underline;
+}
+
+.modern-template__section {
+  margin-bottom: 24px;
+}
+
+.modern-template__section-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1e40af;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 4px;
+  margin-bottom: 12px;
+}
+
+.modern-template__summary {
+  font-size: 0.95rem;
+  color: #374151;
+}
+
+.modern-template__experience-item {
+  margin-bottom: 16px;
+}
+
+.modern-template__job-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.modern-template__job-title {
+  font-weight: 600;
+  font-size: 1rem;
+  color: #111827;
+}
+
+.modern-template__job-company {
+  font-weight: 500;
+  color: #374151;
+}
+
+.modern-template__job-meta {
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.modern-template__achievements {
+  margin: 8px 0 0 0;
+  padding-left: 18px;
+}
+
+.modern-template__achievements li {
+  margin-bottom: 4px;
+  font-size: 0.9rem;
+  color: #374151;
+}
+
+.modern-template__education-item {
+  margin-bottom: 10px;
+}
+
+.modern-template__degree {
+  font-weight: 600;
+  color: #111827;
+}
+
+.modern-template__school {
+  color: #4b5563;
+  font-size: 0.9rem;
+}
+
+.modern-template__edu-details {
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+.modern-template__skills-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.modern-template__skills-left {
+  display: flex;
+  flex-direction: column;
+}
+
+.modern-template__skills-right {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modern-template__skill-category {
+  font-size: 0.85rem;
+}
+
+.modern-template__skill-category--top {
+  flex: 1;
+}
+
+.modern-template__skill-category--bottom {
+  flex: 1;
+}
+
+.modern-template__skill-label {
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 4px;
+}
+
+.modern-template__skill-list {
+  color: #4b5563;
+}
+
+.modern-template__chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.modern-template__chip {
+  display: inline-flex;
+  align-items: center;
+  background-color: #f3f4f6;
+  color: #374151;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  border: 1px solid #e5e7eb;
+  white-space: nowrap;
+}
+
+.modern-template__tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.modern-template__tag {
+  background-color: #eff6ff;
+  color: #1e40af;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+}
+
+.modern-template__project-item {
+  margin-bottom: 12px;
+}
+
+.modern-template__project-name {
+  font-weight: 600;
+  color: #111827;
+}
+
+.modern-template__project-desc {
+  font-size: 0.9rem;
+  color: #4b5563;
+  margin: 2px 0;
+}
+
+.modern-template__project-tech {
+  font-size: 0.8rem;
+  color: #6b7280;
+}

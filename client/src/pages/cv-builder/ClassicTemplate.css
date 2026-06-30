@@ -1,0 +1,233 @@
+.classic-template {
+  font-family: Georgia, "Times New Roman", serif;
+  color: #1a1a1a;
+  background-color: #ffffff;
+  padding: 40px 48px;
+  line-height: 1.6;
+}
+
+.classic-template__header {
+  text-align: center;
+  border-bottom: 2px solid #1a1a1a;
+  padding-bottom: 20px;
+  margin-bottom: 28px;
+}
+
+.classic-template__name {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: #000000;
+  margin: 0 0 6px 0;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.classic-template__job-title {
+  font-size: 1.05rem;
+  font-weight: 400;
+  font-style: italic;
+  color: #4a4a4a;
+  margin-bottom: 12px;
+}
+
+.classic-template__contact {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 18px;
+  font-size: 0.88rem;
+  color: #333333;
+}
+
+.classic-template__contact-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.classic-template__link {
+  color: #1a1a1a;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.classic-template__link:hover {
+  color: #000000;
+}
+
+.classic-template__section {
+  margin-bottom: 26px;
+}
+
+.classic-template__section-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #000000;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border-bottom: 1px solid #cccccc;
+  padding-bottom: 6px;
+  margin-bottom: 14px;
+}
+
+.classic-template__summary {
+  font-size: 0.95rem;
+  color: #333333;
+  text-align: justify;
+}
+
+.classic-template__experience-item {
+  margin-bottom: 18px;
+}
+
+.classic-template__job-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.classic-template__job-title-text {
+  font-weight: 700;
+  font-size: 1rem;
+  color: #000000;
+  font-style: italic;
+}
+
+.classic-template__job-company {
+  font-weight: 400;
+  color: #333333;
+}
+
+.classic-template__job-meta {
+  font-size: 0.85rem;
+  color: #666666;
+  font-style: italic;
+}
+
+.classic-template__achievements {
+  margin: 8px 0 0 0;
+  padding-left: 20px;
+}
+
+.classic-template__achievements li {
+  margin-bottom: 3px;
+  font-size: 0.9rem;
+  color: #333333;
+}
+
+.classic-template__education-item {
+  margin-bottom: 12px;
+}
+
+.classic-template__degree {
+  font-weight: 700;
+  font-style: italic;
+  color: #000000;
+}
+
+.classic-template__school {
+  color: #4a4a4a;
+  font-size: 0.9rem;
+}
+
+.classic-template__edu-details {
+  font-size: 0.85rem;
+  color: #666666;
+  font-style: italic;
+}
+
+.classic-template__skills-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.classic-template__skills-left {
+  display: flex;
+  flex-direction: column;
+}
+
+.classic-template__skills-right {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.classic-template__skill-category {
+  font-size: 0.85rem;
+}
+
+.classic-template__skill-category--top {
+  flex: 1;
+}
+
+.classic-template__skill-category--bottom {
+  flex: 1;
+}
+
+.classic-template__skill-label {
+  font-weight: 700;
+  font-style: italic;
+  color: #333333;
+  margin-bottom: 4px;
+}
+
+.classic-template__chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.classic-template__chip {
+  display: inline-flex;
+  align-items: center;
+  background-color: #f5f5f5;
+  color: #333333;
+  padding: 2px 8px;
+  border: 1px solid #dddddd;
+  border-radius: 2px;
+  font-size: 0.78rem;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.classic-template__tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.classic-template__tag {
+  background-color: #f5f5f5;
+  color: #333333;
+  padding: 2px 10px;
+  border: 1px solid #dddddd;
+  border-radius: 2px;
+  font-size: 0.8rem;
+}
+
+.classic-template__project-item {
+  margin-bottom: 12px;
+}
+
+.classic-template__project-name {
+  font-weight: 700;
+  font-style: italic;
+  color: #000000;
+}
+
+.classic-template__project-desc {
+  font-size: 0.9rem;
+  color: #4a4a4a;
+  margin: 2px 0;
+}
+
+.classic-template__project-tech {
+  font-size: 0.8rem;
+  color: #666666;
+  font-style: italic;
+}

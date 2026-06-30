@@ -15,6 +15,12 @@ const Navigation = () => {
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
 
+  // Mobile menu & tools dropdown state
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const toolsRef = useRef(null);
+  const mobileRef = useRef(null);
+
   // Debounced search
   useEffect(() => {
     if (!query.trim()) {
@@ -26,15 +32,30 @@ const Navigation = () => {
     return () => clearTimeout(timer);
   }, [query]);
 
-  // Close dropdown on outside click
+  // Close dropdowns on outside click
   useEffect(() => {
     const handleClick = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setShowDropdown(false);
       }
+      if (toolsRef.current && !toolsRef.current.contains(e.target)) {
+        setToolsOpen(false);
+      }
+      if (mobileRef.current && !mobileRef.current.contains(e.target)) {
+        setMobileOpen(false);
+      }
     };
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  // Close mobile menu when resizing to desktop
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth > 920) setMobileOpen(false);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   const performSearch = async (q) => {
@@ -90,15 +111,17 @@ const Navigation = () => {
     }
   };
 
+  const hasTools =
+    isEnabled("recruiter_pipeline") ||
+    isEnabled("job_tracker") ||
+    isEnabled("cv_builder");
+
   return (
     <nav className="nav-shell">
       <div className="nav-brand">ATS Matcher</div>
 
       {/* Global Search */}
-      <div
-        ref={dropdownRef}
-        style={{ position: "relative", flex: 1, maxWidth: "420px" }}
-      >
+      <div ref={dropdownRef} className="nav-search-wrap">
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <input
             type="text"
@@ -212,34 +235,95 @@ const Navigation = () => {
         )}
       </div>
 
-      <div className="nav-links">
-        <NavLink to="/" end className={activeClass}>
+      {/* Hamburger (mobile) */}
+      <button
+        className={`hamburger-btn${mobileOpen ? " open" : ""}`}
+        onClick={() => setMobileOpen(!mobileOpen)}
+        aria-label="Toggle menu"
+        aria-expanded={mobileOpen}
+      >
+        <span></span>
+        <span></span>
+        <span></span>
+      </button>
+
+      {/* Nav Links */}
+      <div
+        ref={mobileRef}
+        className={`nav-links${mobileOpen ? " open" : ""}`}
+      >
+        <NavLink to="/" end className={activeClass} onClick={() => setMobileOpen(false)}>
           Home
         </NavLink>
-        <NavLink to="/matcher" className={activeClass}>
+        <NavLink to="/matcher" className={activeClass} onClick={() => setMobileOpen(false)}>
           Matcher
         </NavLink>
-        {isEnabled("recruiter_pipeline") && (
-          <NavLink to="/recruiters" className={activeClass}>
-            Recruiters
-          </NavLink>
-        )}
-        {isEnabled("job_tracker") && (
-          <NavLink to="/tracker" className={activeClass}>
-            Tracker
-          </NavLink>
-        )}
-        <NavLink to="/dashboard" className={activeClass}>
+        <NavLink to="/dashboard" className={activeClass} onClick={() => setMobileOpen(false)}>
           Dashboard
         </NavLink>
-        <NavLink to="/my-analysis" className={activeClass}>
+        <NavLink to="/my-analysis" className={activeClass} onClick={() => setMobileOpen(false)}>
           My Analysis
         </NavLink>
+
+        {hasTools && (
+          <div ref={toolsRef} className="nav-dropdown">
+            <button
+              className="nav-link nav-dropdown-toggle"
+              onClick={() => setToolsOpen(!toolsOpen)}
+              aria-expanded={toolsOpen}
+            >
+              Tools{" "}
+              <span className="caret">{toolsOpen ? "▲" : "▼"}</span>
+            </button>
+            {toolsOpen && (
+              <div className="nav-dropdown-menu">
+                {isEnabled("recruiter_pipeline") && (
+                  <NavLink
+                    to="/recruiters"
+                    className={activeClass}
+                    onClick={() => {
+                      setToolsOpen(false);
+                      setMobileOpen(false);
+                    }}
+                  >
+                    Recruiters
+                  </NavLink>
+                )}
+                {isEnabled("job_tracker") && (
+                  <NavLink
+                    to="/tracker"
+                    className={activeClass}
+                    onClick={() => {
+                      setToolsOpen(false);
+                      setMobileOpen(false);
+                    }}
+                  >
+                    Tracker
+                  </NavLink>
+                )}
+                {isEnabled("cv_builder") && (
+                  <NavLink
+                    to="/cv-builder"
+                    className={activeClass}
+                    onClick={() => {
+                      setToolsOpen(false);
+                      setMobileOpen(false);
+                    }}
+                  >
+                    CV Builder
+                  </NavLink>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         <NavLink
           to="/subscribe"
           className={({ isActive }) =>
             isActive ? "nav-link active nav-primary" : "nav-link nav-primary"
           }
+          onClick={() => setMobileOpen(false)}
         >
           Subscribe
         </NavLink>

@@ -85,6 +85,13 @@ MAX_SAVED_RESUMES = {
     'pro':     int(os.getenv('MAX_SAVED_RESUMES_PRO', 10)),
 }
 
+# CV Profile Limits
+MAX_CV_PROFILES = {
+    'free':    1,
+    'premium': 5,
+    'pro':     int(os.getenv('MAX_CV_PROFILES_PRO', 50)),
+}
+
 # Batch Processing Limits (resumes per batch job)
 MAX_BATCH_RESUMES = int(os.getenv('MAX_BATCH_RESUMES', 10))
 

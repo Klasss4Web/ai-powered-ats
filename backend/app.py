@@ -24,6 +24,7 @@ from routes.admin import register_admin_routes
 from routes.jobs import register_job_routes
 from routes.applications import register_application_routes
 from routes.features import register_feature_routes
+from routes.cv import register_cv_routes
 
 from logger.app_logger import logger
 
@@ -129,6 +130,7 @@ def register_routes(app):
     register_job_routes(app)
     register_application_routes(app)
     register_feature_routes(app)
+    register_cv_routes(app)
 
 
 @app.route("/", methods=["GET"])

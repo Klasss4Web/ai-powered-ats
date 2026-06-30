@@ -14,6 +14,8 @@ import ResetPasswordPage from "./pages/ResetPasswordPage";
 import MyAnalysisPage from "./pages/MyAnalysisPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import ToastContainer from "./components/ToastContainer";
+import CVBuilderDashboard from "./pages/cv-builder/CVBuilderDashboard";
+import CVBuilderEditor from "./pages/cv-builder/CVBuilderEditor";
 
 // Admin pages
 import {
@@ -62,6 +64,8 @@ function App() {
                       <Route path="/tracker" element={<JobTrackerPage />} />
                       <Route path="/dashboard" element={<DashboardPage />} />
                       <Route path="/my-analysis" element={<MyAnalysisPage />} />
+                      <Route path="/cv-builder" element={<CVBuilderDashboard />} />
+                      <Route path="/cv-builder/edit/:id" element={<CVBuilderEditor />} />
                       <Route path="/subscribe" element={<SubscriptionPage />} />
                       <Route path="/verify-payment" element={<VerifyPaymentPage />} />
                        <Route path="/reset-password" element={<ResetPasswordPage />} />
